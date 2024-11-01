@@ -16,16 +16,15 @@ use rsknet_global::{HANDLES, GLOBALMQ};
 
 fn thread_worker(dispatch_type:u32, monitor:Arc<RskynetMonitor>){
     loop{
-        let mut message_que = (*(GLOBALMQ.lock().unwrap())).pop_queue();
-        if let Some(mut message_que) = message_que{
+        let message_que = (*(GLOBALMQ.lock().unwrap())).pop_queue();
+        if let Some(message_que) = message_que{
             let handle_id = (*message_que.lock().unwrap()).handle;
             let ctx = (*(HANDLES.lock().unwrap())).get_context(handle_id);
             let msgs = (*message_que.lock().unwrap()).get_msg().unwrap();
-            for msg in msgs.iter() {//todo choose consume length
+            for msg in msgs.into_iter() {//todo choose consume length
                 // consume msg
-                let data = &msg.data;
-                let thread_id = thread::current().id();
-                println!("from worked {thread_id:?}, {data:?}")
+               // ((*ctx.lock().unwrap()).cb)(ctx.clone(), msg.session, msg.source, msg.data);
+               (*ctx.lock().unwrap()).call_cb(msg);
             }
         }else{
             // let thread_id = thread::current().id();
@@ -48,11 +47,10 @@ fn main() {
 
     let thread_capacity:u32 = 5;
     let mut threads = Vec::with_capacity(thread_capacity.try_into().unwrap());
-    let handles_clone = HANDLES.clone();
     let monitor = Arc::new(RskynetMonitor::new());
     let monitor_clone = monitor.clone();
 
-    threads.push(thread::spawn(move || rsknet_socket::rsnet_socket_start(monitor_clone, handles_clone))); 
+    threads.push(thread::spawn(move || rsknet_socket::rsnet_socket_start(monitor_clone))); 
 
     for i in 1..=thread_capacity-1 {
         let monitor_clone = monitor.clone();

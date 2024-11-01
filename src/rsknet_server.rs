@@ -7,15 +7,11 @@ use crate::service_snlua::{RsnLua};
 use crate::rsknet_global::{get_ctx_by_handle, GLOBALMQ};
 
 pub struct RskynetContext{
-    instance:Arc<Mutex<RsnLua>>, 
-    pub cb:fn(Arc<Mutex<RskynetContext>>, Arc<Mutex<Lua>>, u32, u32, Vec<u32>)-> u32,
+    pub instance:Arc<Mutex<RsnLua>>, 
+    pub cb:Option<fn(&mut RskynetContext, u32, u32, Vec<u32>)-> u32>,
     session_id:u32,
 	pub handle:u32,// uint32_t handle;
     queue:Arc<Mutex<MessageQueue>>,
-}
-
-fn nul_cb(_:Arc<Mutex<RskynetContext>>, _:Arc<Mutex<Lua>>, _:u32, _:u32, _:Vec<u32>)-> u32{
-    return 0
 }
 
 fn context_push(destination:u32, msg:RuskynetMsg) -> u32{
@@ -38,7 +34,7 @@ impl RskynetContext{
         let ctx = Arc::new(Mutex::new(
             RskynetContext{
                 instance:instance.clone(),
-                cb:nul_cb,
+                cb:None,
                 session_id:1,
                 handle:1,
                 queue,
@@ -60,5 +56,13 @@ impl RskynetContext{
         if !self.queue.lock().unwrap().in_global {
             (*GLOBALMQ.lock().unwrap()).push_queue(self.queue.clone())
         }
+    }
+    
+    pub fn call_cb(&mut self, msg:RuskynetMsg) -> u32{ 
+        let cb_fun = self.cb.take().unwrap();
+        cb_fun(self, msg.session, msg.source, msg.data);
+        self.cb = Some(cb_fun);
+        //self.cb;
+        return 0
     }
 }
