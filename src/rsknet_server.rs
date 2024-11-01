@@ -1,20 +1,53 @@
 use std::sync::{Arc, Mutex};
+use mlua::{FromLua, Function, Lua, MetaMethod, Result, UserData, UserDataMethods, Value, Variadic};
 
+use crate::rsknet_handle::RskynetHandle;
 use crate::rsknet_mq::{MessageQueue, RuskynetMsg, GlobalQueue};
+use crate::service_snlua::{RsnLua};
+use crate::rsknet_global::{get_ctx_by_handle, GLOBALMQ};
 
 pub struct RskynetContext{
-	handle:u32,// uint32_t handle;
+    instance:Arc<Mutex<RsnLua>>, 
+    pub cb:fn(Arc<Mutex<RskynetContext>>, Arc<Mutex<Lua>>, u32, u32, Vec<u32>)-> u32,
+    session_id:u32,
+	pub handle:u32,// uint32_t handle;
     queue:Arc<Mutex<MessageQueue>>,
-    //session:u32,
+}
+
+fn nul_cb(_:Arc<Mutex<RskynetContext>>, _:Arc<Mutex<Lua>>, _:u32, _:u32, _:Vec<u32>)-> u32{
+    return 0
+}
+
+fn context_push(destination:u32, msg:RuskynetMsg) -> u32{
+    let ctx = get_ctx_by_handle(destination);
+    ctx.lock().unwrap().push_msg(msg);
+    return 0;
+}
+
+pub fn rsknet_send(ctx:Arc<Mutex<RskynetContext>>, source:u32, destination:u32, session:u32, data:Vec<u32>) -> u32{
+    let msg = RuskynetMsg::new(source, session, data);
+    context_push(destination, msg); 
+    return 1;
 }
 
 impl RskynetContext{
-    pub fn new() -> Self{
+    pub fn new(hanlde:Arc<Mutex<RskynetHandle>>) -> Arc<Mutex<RskynetContext>>{
         let queue = Arc::new(Mutex::new(MessageQueue::new()));
-        return RskynetContext{
-            handle:1,
-            queue,
-        }
+        let instance = Arc::new(Mutex::new(RsnLua::new()));
+
+        let ctx = Arc::new(Mutex::new(
+            RskynetContext{
+                instance:instance.clone(),
+                cb:nul_cb,
+                session_id:1,
+                handle:1,
+                queue,
+            }
+        ));
+        (*hanlde.lock().unwrap()).handle_register(ctx.clone());
+        (*instance.lock().unwrap()).init(ctx.clone());
+
+        return ctx;
     }
 
     pub fn set_handle(&mut self, handle:u32){
@@ -22,10 +55,10 @@ impl RskynetContext{
         self.queue.lock().unwrap().set_handle(handle);
     }
 
-    pub fn push_msg(&mut self, global_que:Arc<Mutex<GlobalQueue>>, msg:RuskynetMsg) {
+    pub fn push_msg(&mut self, msg:RuskynetMsg) {
         (*self.queue.lock().unwrap()).push_msg(msg);
         if !self.queue.lock().unwrap().in_global {
-            (*global_que.lock().unwrap()).push_queue(self.queue.clone())
+            (*GLOBALMQ.lock().unwrap()).push_queue(self.queue.clone())
         }
     }
 }

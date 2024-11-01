@@ -5,13 +5,12 @@ pub struct RuskynetMsg{
 	source: u32,
 	session: u32,
 	pub data:Vec<u32>,
-	sz:u32,
 }
 
 impl RuskynetMsg{
-	pub fn new(source:u32, session:u32, data:Vec<u32>, sz:u32) -> Self{
+	pub fn new(source:u32, session:u32, data:Vec<u32>) -> Self{
 		return RuskynetMsg{
-			source, session, data, sz
+			source, session, data
 		}
 	}
 }
@@ -58,8 +57,6 @@ impl MessageQueue{
 }
 pub struct GlobalQueue {
 	global_que:Option<Arc<Mutex<VecDeque<Arc<Mutex<MessageQueue>>>>>>,
-	//head:Option<Arc<MessageQueue>>,// struct message_queue *head;
-	//tail:Option<Arc<MessageQueue>>,//struct message_queue *tail;
 }
 
 impl GlobalQueue{
@@ -87,6 +84,5 @@ impl GlobalQueue{
 				return (*temp.lock().unwrap()).pop_front()
 			}
 		}
-		// return (*self.global_que.clone().unwrap().lock().unwrap()).pop_front();
 	}
 }

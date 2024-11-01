@@ -1,21 +1,18 @@
 use std::thread;
 use std::sync::{Arc, Mutex, Condvar};
-use lazy_static::lazy_static;
 
 mod rsknet_mq;
 mod rsknet_handle;
 mod rsknet_socket;
 mod rsknet_server;
 mod rsknet_monitor;
+mod service_snlua;
+mod rsknet_global;
 
-use rsknet_handle::RskynetHandle;
 use rsknet_monitor::RskynetMonitor;
 use rsknet_server::RskynetContext;
+use rsknet_global::{HANDLES, GLOBALMQ};
 
-lazy_static! {
-    static ref HANDLES:Arc<Mutex<RskynetHandle>> = Arc::new(Mutex::new(RskynetHandle::new()));
-    static ref GLOBALMQ:Arc<Mutex<rsknet_mq::GlobalQueue>> = Arc::new(Mutex::new(rsknet_mq::GlobalQueue::new()));
-}
 
 fn thread_worker(dispatch_type:u32, monitor:Arc<RskynetMonitor>){
     loop{
@@ -27,21 +24,22 @@ fn thread_worker(dispatch_type:u32, monitor:Arc<RskynetMonitor>){
             for msg in msgs.iter() {//todo choose consume length
                 // consume msg
                 let data = &msg.data;
-                println!("from worked {data:?}")
+                let thread_id = thread::current().id();
+                println!("from worked {thread_id:?}, {data:?}")
             }
         }else{
-            let thread_id = thread::current().id();
+            // let thread_id = thread::current().id();
             monitor.wait_data();
         }
     }
 }
 
 fn boot_strap(){
-    (*(HANDLES.lock().unwrap())).handle_register(Arc::new(Mutex::new(RskynetContext::new())));
-    (*(HANDLES.lock().unwrap())).handle_register(Arc::new(Mutex::new(RskynetContext::new())));
-    (*(HANDLES.lock().unwrap())).handle_register(Arc::new(Mutex::new(RskynetContext::new())));
-    (*(HANDLES.lock().unwrap())).handle_register(Arc::new(Mutex::new(RskynetContext::new())));
-    (*(HANDLES.lock().unwrap())).handle_register(Arc::new(Mutex::new(RskynetContext::new())));
+    RskynetContext::new(HANDLES.clone());
+    RskynetContext::new(HANDLES.clone());
+    RskynetContext::new(HANDLES.clone());
+    RskynetContext::new(HANDLES.clone());
+    RskynetContext::new(HANDLES.clone());
 }
 
 fn main() {
@@ -54,8 +52,7 @@ fn main() {
     let monitor = Arc::new(RskynetMonitor::new());
     let monitor_clone = monitor.clone();
 
-    let global_clone = GLOBALMQ.clone();
-    threads.push(thread::spawn(move || rsknet_socket::rsnet_socket_start(monitor_clone, handles_clone, global_clone))); 
+    threads.push(thread::spawn(move || rsknet_socket::rsnet_socket_start(monitor_clone, handles_clone))); 
 
     for i in 1..=thread_capacity-1 {
         let monitor_clone = monitor.clone();

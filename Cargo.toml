@@ -7,3 +7,4 @@ edition = "2021"
 
 [dependencies]
 lazy_static = "1.4.0"
+mlua = { version = "0.10.0", features = ["lua54", "vendored", "send"] }
