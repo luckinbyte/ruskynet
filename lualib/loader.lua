@@ -1,2 +1,2 @@
-print("hello loader", ...)
-return 123
+local f,msg = loadfile("./service/"..select(1, ...))
+f()
