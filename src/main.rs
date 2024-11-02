@@ -23,7 +23,6 @@ fn thread_worker(dispatch_type:u32, monitor:Arc<RskynetMonitor>){
             let msgs = (*message_que.lock().unwrap()).get_msg().unwrap();
             for msg in msgs.into_iter() {//todo choose consume length
                 // consume msg
-               // ((*ctx.lock().unwrap()).cb)(ctx.clone(), msg.session, msg.source, msg.data);
                (*ctx.lock().unwrap()).call_cb(msg);
             }
         }else{

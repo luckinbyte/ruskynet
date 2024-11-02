@@ -8,7 +8,7 @@ use crate::rsknet_global::{get_ctx_by_handle, GLOBALMQ};
 
 pub struct RskynetContext{
     pub instance:Arc<Mutex<RsnLua>>, 
-    pub cb:Option<fn(&mut RskynetContext, u32, u32, Vec<u32>)-> u32>,
+    pub cb:Option<fn(&mut RskynetContext, u32, u32, Vec<u32>)-> Result<()>>,
     session_id:u32,
 	pub handle:u32,// uint32_t handle;
     queue:Arc<Mutex<MessageQueue>>,
