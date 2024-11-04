@@ -10,7 +10,7 @@ use mlua::{ffi, Chunk, FromLua, Function, Lua, MetaMethod, Result, UserData, Use
 
 use crate::rsknet_mq::RuskynetMsg;
 use crate::rsknet_server::{RskynetContext, rsknet_send};
-use crate::rsknet_global::{to_cstr};
+use crate::rsknet_global::{to_cstr, lua_cb_fun_str};
 
 pub struct RsnLua{
     lua_main:Option<Lua>,
@@ -18,9 +18,19 @@ pub struct RsnLua{
 }
 
 pub fn _cb(ctx:&mut RskynetContext, session:u32, source:u32, data:Vec<u32>) -> Result<()>{
-    println!("from _cb _cb _cb");
+    let rsn_lua = ctx.instance.clone();
+    let lua = (*rsn_lua.lock().unwrap()).lua_main.take().unwrap();
 
+    let data = lua.pack(data)?;
 
+    let lua_cb_fun:Value = lua.named_registry_value(lua_cb_fun_str)?;
+    unsafe{
+        lua.exec_raw((lua_cb_fun, session, source, data), |state|{
+            let n = ffi::lua_gettop(state);
+
+            ffi::lua_call(state, 3, 0);
+        })
+    }?;
 
     Ok(())
 }
@@ -31,6 +41,7 @@ pub fn launch_cb(ctx:&mut RskynetContext, session:u32, source:u32, data:Vec<u32>
     println!("launch_cb in thread {thread_id:?} {data:?} begin");
     let rsn_lua = ctx.instance.clone();
     let lua = (*rsn_lua.lock().unwrap()).lua_main.take().unwrap();
+
     // load bootstrap.lua
     let globals = lua.globals();
     globals.set("LUA_SERVICE", "../service/?.lua")?;
@@ -40,8 +51,9 @@ pub fn launch_cb(ctx:&mut RskynetContext, session:u32, source:u32, data:Vec<u32>
         unsafe{
             lua.exec_raw((a),|state|{
                 let n = ffi::lua_gettop(state);
-                println!("num of top {}", n);
-                println!("check type, {:?}", ffi::luaL_checktype(state, 1, ffi::LUA_TFUNCTION));
+
+                ffi::lua_setfield(state, ffi::LUA_REGISTRYINDEX, to_cstr(lua_cb_fun_str));
+                //ffi::lua_settop(state,1);
 
                 ffi::lua_getfield(state, ffi::LUA_REGISTRYINDEX, to_cstr("skynet_context"));
                 // let ctx = ffi::lua_touserdata(state, ffi::lua_upvalueindex(1)) as *mut RskynetContext;

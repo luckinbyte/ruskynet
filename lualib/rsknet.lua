@@ -67,6 +67,7 @@ local function raw_dispatch_message(prototype, msg, session, source)
 end
 
 function rsknet.dispatch_message(...)
+	print("in rsknet dispatch_message", ...)
     pcall(raw_dispatch_message, ...)
 end
 

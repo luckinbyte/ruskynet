@@ -11,11 +11,13 @@ lazy_static! {
     pub static ref GLOBALMQ:Arc<Mutex<GlobalQueue>> = Arc::new(Mutex::new(GlobalQueue::new()));
 }
 
-
 pub fn get_ctx_by_handle(handle:u32) -> Arc<Mutex<RskynetContext>>{
     return (*HANDLES.lock().unwrap()).get_context(handle);
 }
 
-pub fn to_cstr(a: *const str) -> *const c_char {
-    return a as *const str as *const [c_char] as *const c_char;
+pub fn to_cstr(a:&str) -> *const c_char {
+    return a.as_bytes().as_ptr() as *const c_char;
+    //return a as *const str as *const [c_char] as *const c_char;
 }
+
+pub static lua_cb_fun_str:&str = "lua_cb_fun";
