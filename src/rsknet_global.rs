@@ -1,5 +1,6 @@
 use lazy_static::lazy_static;
 use std::sync::{Arc, Mutex, Condvar};
+use std::os::raw::c_char;
 
 use crate::rsknet_handle::RskynetHandle;
 use crate::rsknet_server::RskynetContext;
@@ -13,4 +14,8 @@ lazy_static! {
 
 pub fn get_ctx_by_handle(handle:u32) -> Arc<Mutex<RskynetContext>>{
     return (*HANDLES.lock().unwrap()).get_context(handle);
+}
+
+pub fn to_cstr(a: *const str) -> *const c_char {
+    return a as *const str as *const [c_char] as *const c_char;
 }

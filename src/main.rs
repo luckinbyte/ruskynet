@@ -44,7 +44,7 @@ fn main() {
     println!("hello ruskynet!");
     boot_strap();
 
-    let thread_capacity:u32 = 5;
+    let thread_capacity:u32 = 4;
     let mut threads = Vec::with_capacity(thread_capacity.try_into().unwrap());
     let monitor = Arc::new(RskynetMonitor::new());
     let monitor_clone = monitor.clone();

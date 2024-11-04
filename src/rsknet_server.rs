@@ -1,5 +1,5 @@
 use std::sync::{Arc, Mutex};
-use mlua::{FromLua, Function, Lua, MetaMethod, Result, UserData, UserDataMethods, Value, Variadic};
+use mlua::{lua_State, FromLua, Function, Lua, MetaMethod, Result, UserData, UserDataMethods, Value, Variadic};
 
 use crate::rsknet_handle::RskynetHandle;
 use crate::rsknet_mq::{MessageQueue, RuskynetMsg, GlobalQueue};
@@ -9,6 +9,7 @@ use crate::rsknet_global::{get_ctx_by_handle, GLOBALMQ};
 pub struct RskynetContext{
     pub instance:Arc<Mutex<RsnLua>>, 
     pub cb:Option<fn(&mut RskynetContext, u32, u32, Vec<u32>)-> Result<()>>,
+    pub cb_userdata:Option<()>,
     session_id:u32,
 	pub handle:u32,// uint32_t handle;
     queue:Arc<Mutex<MessageQueue>>,
@@ -35,6 +36,7 @@ impl RskynetContext{
             RskynetContext{
                 instance:instance.clone(),
                 cb:None,
+                cb_userdata:None,
                 session_id:1,
                 handle:1,
                 queue,
@@ -61,8 +63,9 @@ impl RskynetContext{
     pub fn call_cb(&mut self, msg:RuskynetMsg) -> u32{ 
         let cb_fun = self.cb.take().unwrap();
         cb_fun(self, msg.session, msg.source, msg.data);
-        self.cb = Some(cb_fun);
-        //self.cb;
+        if self.cb == None{
+            self.cb = Some(cb_fun);
+        }
         return 0
     }
 }
