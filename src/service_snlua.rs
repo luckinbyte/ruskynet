@@ -8,7 +8,10 @@ use std::ptr;
 use std::ffi::{CStr, CString};
 use std::str;
 
-use mlua::{ffi, Chunk, FromLua, Function, Lua, MetaMethod, Result, UserData, UserDataMethods, Value, Variadic};
+//use serde_json;
+//use serde::{Deserialize, Serialize};
+use mlua::{ffi, ffi::*,  Chunk, FromLua, Function, Lua, MetaMethod, Result, 
+            Table, UserData, UserDataMethods, Value, Variadic};
 
 use crate::rsknet_mq::RuskynetMsg;
 use crate::rsknet_server::{RskynetContext, rsknet_send};
@@ -44,7 +47,7 @@ pub fn _cb(ctx:&mut RskynetContext, proto_type:u32, data:Vec<u8>, session:u32, s
 
 pub fn launch_cb(ctx:&mut RskynetContext, proto_type:u32, data:Vec<u8>, session:u32, source:u32) -> Result<()>{
     let thread_id = thread::current().id();
-    println!("launch_cb in thread {thread_id:?} {data:?} begin");
+    println!("launch_cb in thread {thread_id:?} {:?} {data:?} begin", ctx.handle);
     let rsn_lua = ctx.instance.clone();
     let lua = (*rsn_lua.lock().unwrap()).lua_main.take().unwrap();
 
@@ -92,7 +95,7 @@ pub fn launch_cb(ctx:&mut RskynetContext, proto_type:u32, data:Vec<u8>, session:
                 let parm = ffi::lua_tostring(state, 2);
                 let parm = CStr::from_ptr(parm).to_string_lossy().to_string();
                 let result = (*ctx).rsknet_command(cmd, parm);
-                ffi::lua_pop(state, 2);
+                ffi::lua_pop(state, 3);
                 match result{
                     None => {
                         ffi::lua_pushnil(state);
@@ -106,6 +109,45 @@ pub fn launch_cb(ctx:&mut RskynetContext, proto_type:u32, data:Vec<u8>, session:
         return Ok(res);
     })?;
     globals.set("rsknet_core_command", command_fun)?;
+
+    let send_fun = lua.create_function(|lua: &Lua, (des, ptype, session, msg):(Value, Value, Value, Value) | {
+        let res:Value = unsafe{
+            lua.exec_raw((des, ptype, session, msg),|state|{
+                ffi::lua_getfield(state, ffi::LUA_REGISTRYINDEX, to_cstr(RSKNETCTXSTR));
+                let ctx = ffi::lua_touserdata(state, -1) as *mut RskynetContext;
+                //let n = ffi::lua_gettop(state);
+
+                let des = lua_tointeger(state, 1) as u32;
+                let ptype:u32 = lua_tointeger(state, 2) as u32;
+                let session = lua_tointeger(state, 3) as u32;
+                let data = lua_tostring(state, 4);     
+                let data = CStr::from_ptr(data).to_string_lossy().to_string();  
+                println!("send fun {data}");      
+
+                let new_session = (*ctx).rsknet_send(des, ptype, session, data);
+                lua_pushinteger(state, new_session as i64);
+            })
+        }?;
+        return Ok(res);
+    })?;
+    globals.set("rsknet_core_send", send_fun)?;
+
+    let lua_pack_fun = lua.create_function(|lua: &Lua, (tt):(Value) | {
+        match tt{
+            Value::Table(tt) =>{
+                if let Ok(ser) = serde_json::to_string(&tt){
+                    return Ok(ser);
+                }else{
+                    return Ok("".to_string())
+                }
+            },
+            _ => {
+                let tt_str = tt.as_string_lossy().unwrap();
+                return Ok(tt_str)
+            }
+        }
+    })?;
+    globals.set("rsknet_core_luapack", lua_pack_fun)?;
 
     let arg:Vec<&str> = str::from_utf8(&data).unwrap().split_whitespace().collect();
     unsafe {

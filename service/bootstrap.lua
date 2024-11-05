@@ -15,14 +15,10 @@ local rsknet = require "../lualib/rsknet"
 
 rsknet.start(function() 
 	print("in bootstrap fun")
-	rsknet_core_command("LAUNCH", table.concat({"snlua", "launcher"}," ") )
-	-- rsknet.dispatch("lua", function(session, source, cmd, subcmd, ...)
-	-- 	if cmd == "socket" then
-	-- 		local f = SOCKET[subcmd]
-	-- 		f(...)
-	-- 	else
-	-- 		local f = CMD[cmd]
-	-- 		skynet.ret(skynet.pack(f(subcmd, ...)))
-	-- 	end
-	-- end)
+	local handle_id = rsknet_core_command("LAUNCH", table.concat({"snlua", "launcher"}," ") )
+	-- todo rsknet.name(".launcher", handle_id)
+
+	rsknet.newservice "service_mgr"
+
+	rsknet.exit()
 end)

@@ -30,7 +30,7 @@ pub fn rsknet_send(ctx:Arc<Mutex<RskynetContext>>, source:u32, destination:u32, 
 }
 
 impl RskynetContext{
-    pub fn new(hanlde:Arc<Mutex<RskynetHandle>>, arg:&str) -> Arc<Mutex<RskynetContext>>{
+    pub fn new(hanlde:Arc<Mutex<RskynetHandle>>, arg:&str) -> u32{
         let queue = Arc::new(Mutex::new(MessageQueue::new()));
         let instance = Arc::new(Mutex::new(RsnLua::new()));
 
@@ -44,10 +44,10 @@ impl RskynetContext{
                 queue,
             }
         ));
-        (*hanlde.lock().unwrap()).handle_register(ctx.clone());
+        let handle = (*hanlde.lock().unwrap()).handle_register(ctx.clone());
         (*instance.lock().unwrap()).init(ctx.clone(), arg);
 
-        return ctx;
+        return handle;
     }
 
     pub fn set_handle(&mut self, handle:u32){
@@ -76,27 +76,26 @@ impl RskynetContext{
     pub fn rsknet_command(&mut self, cmd:String, pram:String) -> Option<String>{
         match &cmd as &str{
             "LAUNCH" => {
-                println!("command launch success, {:?}", pram);
-
-                RskynetContext::new(HANDLES.clone(), pram.as_str());
-
-                // size_t sz = strlen(param);
-                // char tmp[sz+1];
-                // strcpy(tmp,param);
-                // char * args = tmp;
-                // char * mod = strsep(&args, " \t\r\n");
-                // args = strsep(&args, "\r\n");
-                // struct skynet_context * inst = skynet_context_new(mod,args);
-                // if (inst == NULL) {
-                //     return NULL;
-                // } else {
-                //     id_to_hex(context->result, inst->handle);
-                //     return context->result;
-                // }
-
-                None
+                let handle = RskynetContext::new(HANDLES.clone(), pram.as_str());
+                Some(handle.to_string())
             },
             _ => None
         }
+    }
+
+    pub fn rsknet_send(&mut self, des:u32, ptype:u32, session:u32, data:String) -> u32{
+        let new_sid = if session == 0 {
+            self.session_id = self.session_id+1;
+            self.session_id
+        }else{
+            session
+        };
+        let handle_id:u32 = des;
+        let des_ctx = (*(HANDLES.lock().unwrap())).get_context(handle_id);
+        println!("from rsknet_send begin des:{handle_id}");
+        let new_msg = RuskynetMsg::new(ptype, data.into_bytes(), new_sid, self.handle);
+        println!("from rsknet_send end des:{handle_id}");
+        des_ctx.lock().unwrap().push_msg(new_msg);
+        new_sid
     }
 }

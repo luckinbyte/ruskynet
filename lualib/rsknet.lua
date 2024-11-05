@@ -6,14 +6,33 @@ local rsknet = {
 	PTYPE_LUA = 10,
 }
 
-rsknet.pack = table.pack
-rsknet.unpack = table.unpack 
+rsknet.pack = function(...)
+	local ret = rsknet_core_luapack(table.pack(...))
+	print("rsknet pack", ret)
+	return ret
+end 
+rsknet.unpack = function(...)
+	rsknet_core_luaunpack(...)
+end  
 
 local session_id_coroutine = {}
 local session_coroutine_id = {}
 local session_coroutine_address = {}
 
 local running_thread = nil
+
+
+local function yield_call(service, session)
+	session_id_coroutine[session] = running_thread
+	local succ, msg, sz = coroutine.yield "SUSPEND"
+	return msg,sz
+end
+
+function rsknet.call(addr, typename, ...)
+	local p = proto[typename]
+	local session = rsknet_core_send(addr, p.id, 0, p.pack(...))
+	return p.unpack(yield_call(addr, session))
+end
 
 local function coroutine_resume(co, ...)
 	running_thread = co
@@ -79,13 +98,50 @@ function rsknet.dispatch_message(...)
     pcall(raw_dispatch_message, ...)
 end
 
+local function co_create(f)
+	local co = nil
+	co = coroutine.create(function(...)
+		f(...)
+		while true do
+			local session = session_coroutine_id[co]
+
+			-- coroutine exit
+			local address = session_coroutine_address[co]
+			if address then
+				session_coroutine_id[co] = nil
+				session_coroutine_address[co] = nil
+			end
+			-- recycle co into pool
+			f = nil
+			coroutine_pool[#coroutine_pool+1] = co
+			-- recv new main function f
+			f = coroutine_yield "SUSPEND"
+			f(coroutine_yield())
+		end
+	end)
+
+	return co
+end
+
+function rsknet.timeout(ti, func)
+	local session = c.intcommand("TIMEOUT",ti)
+	local co = co_create(func)
+	session_id_coroutine[session] = co
+	return co	-- for debug
+end
+
 function rsknet.start(start_func)
 	rsknet_core_callback(rsknet.dispatch_message)
-	start_func()
+	init_thread = rsknet.timeout(0, function() start_func(), init_thread=nil end)
 	-- init_thread = skynet.timeout(0, function()
 	-- 	skynet.init_service(start_func)
 	-- 	init_thread = nil
 	-- end)
+end
+
+function rsknet.newservice(name, ...)
+	--return rsknet.call(".launcher", "lua", "LAUNCH", "snlua", name, ...)
+	return rsknet.call(2, "lua", "LAUNCH", "snlua", name, ...)
 end
 
 -- regist dispatch fun

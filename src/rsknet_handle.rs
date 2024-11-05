@@ -16,10 +16,11 @@ impl RskynetHandle{
             slot
         }
     }
-    pub fn handle_register(&mut self, context:Arc<Mutex<RskynetContext>>) {
+    pub fn handle_register(&mut self, context:Arc<Mutex<RskynetContext>>) -> u32{
         self.handle_index = self.handle_index+1;
         context.lock().unwrap().set_handle(self.handle_index);
         self.slot.insert(self.handle_index, context);
+        return self.handle_index;
     }
 
     pub fn get_context(&self, handle_id:u32) -> Arc<Mutex<RskynetContext>>{
