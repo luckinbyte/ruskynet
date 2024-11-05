@@ -20,6 +20,7 @@ local session_coroutine_id = {}
 local session_coroutine_address = {}
 
 local running_thread = nil
+local init_thread = nil
 
 
 local function yield_call(service, session)
@@ -124,15 +125,18 @@ local function co_create(f)
 end
 
 function rsknet.timeout(ti, func)
-	local session = c.intcommand("TIMEOUT",ti)
-	local co = co_create(func)
-	session_id_coroutine[session] = co
-	return co	-- for debug
+	print("timeout fun")
+	local session = rsknet_core_command("TIMEOUT", ti)
+	--local co = co_create(func)
+	--session_id_coroutine[session] = co
+	--return co	-- for debug
 end
 
 function rsknet.start(start_func)
+	print("rsknet start begin")
 	rsknet_core_callback(rsknet.dispatch_message)
-	--init_thread = rsknet.timeout(0, function() start_func(), init_thread=nil end)
+	print("rsknet start end")
+	init_thread = rsknet.timeout(0, function() start_func() init_thread=nil end)
 	-- init_thread = skynet.timeout(0, function()
 	-- 	skynet.init_service(start_func)
 	-- 	init_thread = nil
@@ -140,7 +144,8 @@ function rsknet.start(start_func)
 end
 
 function rsknet.newservice(name, ...)
-	--return rsknet.call(".launcher", "lua", "LAUNCH", "snlua", name, ...)
+	-- return rsknet.call(".launcher", "lua", "LAUNCH", "snlua", name, ...)
+	-- todo register ".launcher" to handle_id 2
 	return rsknet.call(2, "lua", "LAUNCH", "snlua", name, ...)
 end
 

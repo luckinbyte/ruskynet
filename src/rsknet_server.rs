@@ -1,5 +1,6 @@
 use std::borrow::Cow;
 use std::sync::{Arc, Mutex};
+use std::vec;
 use mlua::{lua_State, FromLua, Function, Lua, MetaMethod, Result, UserData, UserDataMethods, Value, Variadic};
 
 use crate::rsknet_handle::RskynetHandle;
@@ -74,10 +75,19 @@ impl RskynetContext{
     }
 
     pub fn rsknet_command(&mut self, cmd:String, pram:String) -> Option<String>{
+        println!("rsknet_command: {:?}", &cmd as &str);
         match &cmd as &str{
             "LAUNCH" => {
                 let handle = RskynetContext::new(HANDLES.clone(), pram.as_str());
                 Some(handle.to_string())
+            },
+            "TIMEOUT" => {
+                self.session_id = self.session_id+1;
+                let new_sid = self.session_id;
+                let ptype = 1; //PTYPE_RESPONSE
+                let new_msg = RuskynetMsg::new(ptype, vec![], new_sid, self.handle);
+                self.push_msg(new_msg);
+                Some(new_sid.to_string())
             },
             _ => None
         }

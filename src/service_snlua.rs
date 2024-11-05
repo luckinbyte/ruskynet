@@ -27,6 +27,7 @@ pub fn _cb(ctx:&mut RskynetContext, proto_type:u32, data:Vec<u8>, session:u32, s
     let lua = (*rsn_lua.lock().unwrap()).lua_main.take().unwrap();
 
     let data = lua.pack(data)?;
+    println!("in _cb data:{:?}", data);
     // let lua_cb_fun:Value = lua.named_registry_value(LUACBFUNSTR)?;
     // println!("in cb cb_fun:{:?}", lua_cb_fun);
     unsafe{
