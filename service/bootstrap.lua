@@ -13,6 +13,16 @@ local rsknet = require "../lualib/rsknet"
 -- 	rsknet.exit()
 -- end)
 
-print("in bootstrap lua begin")
-rsknet.start(function() end)
-print("in bootstrap lua end")
+rsknet.start(function() 
+	print("in bootstrap fun")
+	rsknet_core_command("LAUNCH", table.concat({"snlua", "launcher"}," ") )
+	-- rsknet.dispatch("lua", function(session, source, cmd, subcmd, ...)
+	-- 	if cmd == "socket" then
+	-- 		local f = SOCKET[subcmd]
+	-- 		f(...)
+	-- 	else
+	-- 		local f = CMD[cmd]
+	-- 		skynet.ret(skynet.pack(f(subcmd, ...)))
+	-- 	end
+	-- end)
+end)

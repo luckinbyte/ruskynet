@@ -21,9 +21,13 @@ fn thread_worker(dispatch_type:u32, monitor:Arc<RskynetMonitor>){
             let handle_id = (*message_que.lock().unwrap()).handle;
             let ctx = (*(HANDLES.lock().unwrap())).get_context(handle_id);
             let msgs = (*message_que.lock().unwrap()).get_msg().unwrap();
+            println!("{handle_id} has {} msg", msgs.len());
             for msg in msgs.into_iter() {//todo choose consume length
+                let mut ctx = ctx.lock().unwrap();
                 // consume msg
-               (*ctx.lock().unwrap()).call_cb(msg);
+                // let raw_ptr: *const RskynetContext = &(*ctx) as *const RskynetContext;
+                // println!("worker ptr:{:?}", raw_ptr);
+                (*ctx).call_cb(msg);
             }
         }else{
             // let thread_id = thread::current().id();
@@ -33,11 +37,11 @@ fn thread_worker(dispatch_type:u32, monitor:Arc<RskynetMonitor>){
 }
 
 fn boot_strap(){
-    RskynetContext::new(HANDLES.clone());
-    RskynetContext::new(HANDLES.clone());
-    RskynetContext::new(HANDLES.clone());
-    RskynetContext::new(HANDLES.clone());
-    RskynetContext::new(HANDLES.clone());
+    RskynetContext::new(HANDLES.clone(), "snlua bootstrap");
+    //RskynetContext::new(HANDLES.clone());
+   // RskynetContext::new(HANDLES.clone());
+   // RskynetContext::new(HANDLES.clone());
+   // RskynetContext::new(HANDLES.clone());
 }
 
 fn main() {

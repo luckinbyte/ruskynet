@@ -1,6 +1,13 @@
 local rsknet = {}
 
 local proto = {}
+local rsknet = {
+	PTYPE_RESPONSE = 1,
+	PTYPE_LUA = 10,
+}
+
+rsknet.pack = table.pack
+rsknet.unpack = table.unpack 
 
 local session_id_coroutine = {}
 local session_coroutine_id = {}
@@ -48,36 +55,72 @@ function suspend(co, result, command)
 end
 
 local function raw_dispatch_message(prototype, msg, session, source)
-    if prototype == 1 then
-        local co = session_id_coroutine[session]
-        if co == "BREAK" then
-            session_id_coroutine[session] = nil
-        else
-            session_id_coroutine[session] = nil
-            suspend(co, coroutine_resume(co, true, msg, session))
-        end
-    else
+	print("in rsknet dispatch_message", prototype, msg, session, source)
+
+    -- if prototype == 1 then
+    --     local co = session_id_coroutine[session]
+    --     if co == "BREAK" then
+    --         session_id_coroutine[session] = nil
+    --     else
+    --         session_id_coroutine[session] = nil
+    --         suspend(co, coroutine_resume(co, true, msg, session))
+    --     end
+    -- else
         local p = proto[prototype]    
 		local f = p.dispatch  
         local co = co_create(f)   
         session_coroutine_id[co] = session
         session_coroutine_address[co] = source
         suspend(co, coroutine_resume(co, session, source, p.unpack(msg)))
-    end
+    -- end
 end
 
 function rsknet.dispatch_message(...)
-	print("in rsknet dispatch_message", ...)
     pcall(raw_dispatch_message, ...)
 end
 
 function rsknet.start(start_func)
 	rsknet_core_callback(rsknet.dispatch_message)
-
+	start_func()
 	-- init_thread = skynet.timeout(0, function()
 	-- 	skynet.init_service(start_func)
 	-- 	init_thread = nil
 	-- end)
+end
+
+-- regist dispatch fun
+function rsknet.dispatch(typename, func)
+	local p = proto[typename]
+	if func then
+		local ret = p.dispatch
+		p.dispatch = func
+		return ret
+	else
+		return p and p.dispatch
+	end
+end
+
+function rsknet.launch(...)
+	local addr = rsknet_core_command("LAUNCH", table.concat({...}, " "))
+	if addr then
+		return tonumber(string.sub(addr , 2), 16)
+	end
+end
+
+do
+	local REG = rsknet.register_protocol
+	REG {
+		name = "lua",
+		id = rsknet.PTYPE_LUA,
+		pack = rsknet.pack,
+		unpack = rsknet.unpack,
+	}
+
+	REG {
+		name = "response",
+		id = rsknet.PTYPE_RESPONSE,
+	}
+
 end
 
 return rsknet

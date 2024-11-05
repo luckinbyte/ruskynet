@@ -20,4 +20,5 @@ pub fn to_cstr(a:&str) -> *const c_char {
     //return a as *const str as *const [c_char] as *const c_char;
 }
 
-pub static lua_cb_fun_str:&str = "lua_cb_fun";
+pub static LUACBFUNSTR:&str = "lua_cb_fun";
+pub static RSKNETCTXSTR:&str = "rsknet_context";

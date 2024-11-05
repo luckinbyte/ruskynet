@@ -5,38 +5,44 @@ use std::path::{Path, PathBuf};
 use std::env;
 use std::os::raw::{c_char, c_int, c_void};
 use std::ptr;
+use std::ffi::{CStr, CString};
+use std::str;
 
 use mlua::{ffi, Chunk, FromLua, Function, Lua, MetaMethod, Result, UserData, UserDataMethods, Value, Variadic};
 
 use crate::rsknet_mq::RuskynetMsg;
 use crate::rsknet_server::{RskynetContext, rsknet_send};
-use crate::rsknet_global::{to_cstr, lua_cb_fun_str};
+use crate::rsknet_global::{to_cstr, LUACBFUNSTR, RSKNETCTXSTR};
 
 pub struct RsnLua{
     lua_main:Option<Lua>,
     rsknet_ctx:Option<Arc<Mutex<RskynetContext>>>,
 }
 
-pub fn _cb(ctx:&mut RskynetContext, session:u32, source:u32, data:Vec<u32>) -> Result<()>{
+pub fn _cb(ctx:&mut RskynetContext, proto_type:u32, data:Vec<u8>, session:u32, source:u32) -> Result<()>{
     let rsn_lua = ctx.instance.clone();
     let lua = (*rsn_lua.lock().unwrap()).lua_main.take().unwrap();
 
     let data = lua.pack(data)?;
-
-    let lua_cb_fun:Value = lua.named_registry_value(lua_cb_fun_str)?;
+    // let lua_cb_fun:Value = lua.named_registry_value(LUACBFUNSTR)?;
+    // println!("in cb cb_fun:{:?}", lua_cb_fun);
     unsafe{
-        lua.exec_raw((lua_cb_fun, session, source, data), |state|{
-            let n = ffi::lua_gettop(state);
+        lua.exec_raw((1, proto_type, data, session, source), |state|{
+            ffi::lua_getfield(state, ffi::LUA_REGISTRYINDEX, to_cstr(LUACBFUNSTR));
+            ffi::lua_replace(state, 1);
 
-            ffi::lua_call(state, 3, 0);
+            let n = ffi::lua_gettop(state);
+            // println!("in cb {:?}", n);
+            ffi::lua_call(state, 4, 0);
         })
     }?;
+    (*rsn_lua.lock().unwrap()).lua_main = Some(lua);
 
     Ok(())
 }
 
 
-pub fn launch_cb(ctx:&mut RskynetContext, session:u32, source:u32, data:Vec<u32>) -> Result<()>{
+pub fn launch_cb(ctx:&mut RskynetContext, proto_type:u32, data:Vec<u8>, session:u32, source:u32) -> Result<()>{
     let thread_id = thread::current().id();
     println!("launch_cb in thread {thread_id:?} {data:?} begin");
     let rsn_lua = ctx.instance.clone();
@@ -52,15 +58,16 @@ pub fn launch_cb(ctx:&mut RskynetContext, session:u32, source:u32, data:Vec<u32>
             lua.exec_raw((a),|state|{
                 let n = ffi::lua_gettop(state);
 
-                ffi::lua_setfield(state, ffi::LUA_REGISTRYINDEX, to_cstr(lua_cb_fun_str));
+                ffi::lua_setfield(state, ffi::LUA_REGISTRYINDEX, to_cstr(LUACBFUNSTR));
                 //ffi::lua_settop(state,1);
 
-                ffi::lua_getfield(state, ffi::LUA_REGISTRYINDEX, to_cstr("skynet_context"));
-                // let ctx = ffi::lua_touserdata(state, ffi::lua_upvalueindex(1)) as *mut RskynetContext;
+                ffi::lua_getfield(state, ffi::LUA_REGISTRYINDEX, to_cstr(RSKNETCTXSTR));
+                //let ctx = ffi::lua_touserdata(state, ffi::lua_upvalueindex(1)) as *mut RskynetContext;
                 let ctx = ffi::lua_touserdata(state, -1) as *mut RskynetContext;
                 //let cb_ud = ffi::lua_newthread(state);
                 //ffi::lua_xmove(state, cb_ud, 1);
 
+                // println!("get ptr:{:?}, {:?}, {:?}", ctx, to_cstr(RSKNETCTXSTR), to_cstr(LUACBFUNSTR));
                 (*ctx).cb = Some(_cb);
                 //(*ctx).cb_userdata = Some(Arc::new(Mutex::new(*cb_ud)));
             })
@@ -73,16 +80,44 @@ pub fn launch_cb(ctx:&mut RskynetContext, session:u32, source:u32, data:Vec<u32>
         // let a =  lua.create_thread({}).unwrap();
     })?;
     globals.set("rsknet_core_callback", callback)?;
-    
+
+    let command_fun = lua.create_function(|lua: &Lua, (a, b):(Value, Value) | {
+        let res:Value = unsafe{
+            lua.exec_raw((a, b),|state|{
+                ffi::lua_getfield(state, ffi::LUA_REGISTRYINDEX, to_cstr(RSKNETCTXSTR));
+                let ctx = ffi::lua_touserdata(state, -1) as *mut RskynetContext;
+
+                let cmd = ffi::lua_tostring(state, 1);
+                let cmd = CStr::from_ptr(cmd).to_string_lossy().to_string();
+                let parm = ffi::lua_tostring(state, 2);
+                let parm = CStr::from_ptr(parm).to_string_lossy().to_string();
+                let result = (*ctx).rsknet_command(cmd, parm);
+                ffi::lua_pop(state, 2);
+                match result{
+                    None => {
+                        ffi::lua_pushnil(state);
+                    },
+                    Some(res) =>{
+                        ffi::lua_pushstring(state, CString::new(res).unwrap().as_ptr());
+                    }
+                }
+            })
+        }?;
+        return Ok(res);
+    })?;
+    globals.set("rsknet_core_command", command_fun)?;
+
+    let arg:Vec<&str> = str::from_utf8(&data).unwrap().split_whitespace().collect();
     unsafe {
         let load_file = "lualib/loader.lua";
-        let service_name = ("bootstrap.lua", load_file);
+        let service_name = (arg[1].to_owned()+".lua", load_file);
         let ctx_ptr = ptr::from_mut(ctx);
         lua.exec_raw(service_name, |state| {
             let n = ffi::lua_gettop(state);
 
             ffi::lua_pushlightuserdata(state, ctx_ptr as *mut c_void);
-            ffi::lua_setfield(state, ffi::LUA_REGISTRYINDEX, to_cstr("skynet_context"));
+            // println!("set ptr:{:?}, {:?}", ctx_ptr, to_cstr(RSKNETCTXSTR));
+            ffi::lua_setfield(state, ffi::LUA_REGISTRYINDEX, to_cstr(RSKNETCTXSTR));
 
             ffi::luaL_loadfile(state, ffi::lua_tostring(state, 2));
             ffi::lua_pushlstring(state, ffi::lua_tostring(state, 1), 13); 
@@ -107,11 +142,11 @@ impl RsnLua{
         }
     }
 
-    pub fn init(&mut self, rsknet_ctx:Arc<Mutex<RskynetContext>>) {
+    pub fn init(&mut self, rsknet_ctx:Arc<Mutex<RskynetContext>>, arg:&str) {
         self.rsknet_ctx = Some(rsknet_ctx.clone());
         (*rsknet_ctx.lock().unwrap()).cb = Some(launch_cb);
         let handle_id =(*rsknet_ctx.lock().unwrap()).handle; 
-        rsknet_send(rsknet_ctx.clone(), handle_id, handle_id, 0, vec![777]);
+        rsknet_send(rsknet_ctx.clone(), handle_id, handle_id, 0, 0, arg.as_bytes().to_vec());
     }
 
 }

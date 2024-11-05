@@ -2,15 +2,16 @@ use std::sync::{Arc, Mutex};
 use std::collections::VecDeque;
 
 pub struct RuskynetMsg{
-	pub source: u32,
+	pub proto_type:u32,
+	pub data:Vec<u8>,
 	pub session: u32,
-	pub data:Vec<u32>,
+	pub source: u32,
 }
 
 impl RuskynetMsg{
-	pub fn new(source:u32, session:u32, data:Vec<u32>) -> Self{
+	pub fn new(proto_type:u32, data:Vec<u8>, session:u32, source:u32) -> Self{
 		return RuskynetMsg{
-			source, session, data
+			proto_type, data, session, source
 		}
 	}
 }
