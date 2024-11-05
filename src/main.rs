@@ -8,6 +8,7 @@ mod rsknet_server;
 mod rsknet_monitor;
 mod service_snlua;
 mod rsknet_global;
+mod rsknet_timer;
 
 use rsknet_monitor::RskynetMonitor;
 use rsknet_server::RskynetContext;
@@ -52,8 +53,9 @@ fn main() {
     let mut threads = Vec::with_capacity(thread_capacity.try_into().unwrap());
     let monitor = Arc::new(RskynetMonitor::new());
     let monitor_clone = monitor.clone();
-
     threads.push(thread::spawn(move || rsknet_socket::rsnet_socket_start(monitor_clone))); 
+    let monitor_clone = monitor.clone();
+    threads.push(thread::spawn(move || rsknet_timer::rsnet_timer_start(monitor_clone))); 
 
     for i in 1..=thread_capacity-1 {
         let monitor_clone = monitor.clone();

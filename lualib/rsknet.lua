@@ -132,7 +132,7 @@ end
 
 function rsknet.start(start_func)
 	rsknet_core_callback(rsknet.dispatch_message)
-	init_thread = rsknet.timeout(0, function() start_func(), init_thread=nil end)
+	--init_thread = rsknet.timeout(0, function() start_func(), init_thread=nil end)
 	-- init_thread = skynet.timeout(0, function()
 	-- 	skynet.init_service(start_func)
 	-- 	init_thread = nil
