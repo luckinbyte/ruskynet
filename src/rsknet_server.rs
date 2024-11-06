@@ -47,7 +47,7 @@ impl RskynetContext{
         ));
         let handle = (*hanlde.lock().unwrap()).handle_register(ctx.clone());
         (*instance.lock().unwrap()).init(ctx.clone(), arg);
-
+        println!("!!!!! new handle {handle} !!!!!");
         return handle;
     }
 
@@ -102,9 +102,8 @@ impl RskynetContext{
         };
         let handle_id:u32 = des;
         let des_ctx = (*(HANDLES.lock().unwrap())).get_context(handle_id);
-        println!("from rsknet_send begin des:{handle_id}");
+        println!("from rsknet_send {data:?} des_handle:{handle_id}");
         let new_msg = RuskynetMsg::new(ptype, data.into_bytes(), new_sid, self.handle);
-        println!("from rsknet_send end des:{handle_id}");
         des_ctx.lock().unwrap().push_msg(new_msg);
         new_sid
     }

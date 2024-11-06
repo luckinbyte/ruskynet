@@ -10,8 +10,7 @@ use std::str;
 
 //use serde_json;
 //use serde::{Deserialize, Serialize};
-use mlua::{ffi, ffi::*,  Chunk, FromLua, Function, Lua, MetaMethod, Result, 
-            Table, UserData, UserDataMethods, Value, Variadic};
+use mlua::{ffi::{self, *}, Chunk, FromLua, Function, Lua, LuaSerdeExt, MetaMethod, Result, Table, UserData, UserDataMethods, Value, Variadic};
 
 use crate::rsknet_mq::RuskynetMsg;
 use crate::rsknet_server::{RskynetContext, rsknet_send};
@@ -26,8 +25,8 @@ pub fn _cb(ctx:&mut RskynetContext, proto_type:u32, data:Vec<u8>, session:u32, s
     let rsn_lua = ctx.instance.clone();
     let lua = (*rsn_lua.lock().unwrap()).lua_main.take().unwrap();
 
-    let data = lua.pack(data)?;
-    println!("in _cb data:{:?}", data);
+    println!("in _cb handle:{:?} data:{:?}", ctx.handle, str::from_utf8(&data).unwrap());
+    //let data = lua.pack(data)?;
     // let lua_cb_fun:Value = lua.named_registry_value(LUACBFUNSTR)?;
     // println!("in cb cb_fun:{:?}", lua_cb_fun);
     unsafe{
@@ -48,7 +47,7 @@ pub fn _cb(ctx:&mut RskynetContext, proto_type:u32, data:Vec<u8>, session:u32, s
 
 pub fn launch_cb(ctx:&mut RskynetContext, proto_type:u32, data:Vec<u8>, session:u32, source:u32) -> Result<()>{
     let thread_id = thread::current().id();
-    println!("launch_cb in thread {thread_id:?} {:?} {data:?} begin", ctx.handle);
+    println!("launch_cb in thread {thread_id:?} handle:{:?} {:?} begin", ctx.handle, str::from_utf8(&data).unwrap());
     let rsn_lua = ctx.instance.clone();
     let lua = (*rsn_lua.lock().unwrap()).lua_main.take().unwrap();
 
@@ -149,6 +148,13 @@ pub fn launch_cb(ctx:&mut RskynetContext, proto_type:u32, data:Vec<u8>, session:
         }
     })?;
     globals.set("rsknet_core_luapack", lua_pack_fun)?;
+
+    let lua_unpack_fun = lua.create_function(|lua: &Lua, tt:Value| {
+        //lua.to_value(&serde_json::from_str::<serde_json::Value>(&tt).unwrap())
+        //println!("unpack {:?}", tt);
+        Ok("1")
+    })?;
+    globals.set("rsknet_core_luaunpack", lua_unpack_fun)?;
 
     let arg:Vec<&str> = str::from_utf8(&data).unwrap().split_whitespace().collect();
     unsafe {

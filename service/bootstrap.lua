@@ -18,7 +18,7 @@ rsknet.start(function()
 	local handle_id = rsknet_core_command("LAUNCH", table.concat({"snlua", "launcher"}," ") )
 	-- todo rsknet.name(".launcher", handle_id)
 
-	--rsknet.newservice "service_mgr"
+	rsknet.newservice "service_mgr"
 
 	--rsknet.exit()
 end)

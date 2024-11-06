@@ -22,7 +22,7 @@ fn thread_worker(dispatch_type:u32, monitor:Arc<RskynetMonitor>){
             let handle_id = (*message_que.lock().unwrap()).handle;
             let ctx = (*(HANDLES.lock().unwrap())).get_context(handle_id);
             let msgs = (*message_que.lock().unwrap()).get_msg().unwrap();
-            println!("{handle_id} has {} msg", msgs.len());
+            println!("handld:{handle_id} has {} msg", msgs.len());
             for msg in msgs.into_iter() {//todo choose consume length
                 let mut ctx = ctx.lock().unwrap();
                 // consume msg

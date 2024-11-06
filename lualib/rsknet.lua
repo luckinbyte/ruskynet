@@ -30,6 +30,14 @@ local function yield_call(service, session)
 	return msg,sz
 end
 
+local function co_create(f)
+	local co = nil
+	co = coroutine.create(function(...)
+		f(...)
+	end)
+	return co
+end
+
 function rsknet.call(addr, typename, ...)
 	local p = proto[typename]
 	local session = rsknet_core_send(addr, p.id, 0, p.pack(...))
@@ -38,6 +46,7 @@ end
 
 local function coroutine_resume(co, ...)
 	running_thread = co
+	print("coroutine_resume:", co, ...)
 	return coroutine.resume(co, ...)
 end
 
@@ -59,22 +68,6 @@ function rsknet.dispatch(typename, func)
 	end
 end
 
-function suspend(co, result, command)
-	if not result then
-        -- todo
-	end
-	if command == "SUSPEND" then
-		return dispatch_wakeup()
-	elseif command == "QUIT" then
-		coroutine.close(co)
-		return
-	elseif command == nil then
-		return
-	else
-		error("Unknown command : " .. command .. "\n" .. traceback(co))
-	end
-end
-
 local function raw_dispatch_message(prototype, msg, session, source)
 	print("in rsknet dispatch_message", prototype, msg, session, source)
 
@@ -84,7 +77,7 @@ local function raw_dispatch_message(prototype, msg, session, source)
             session_id_coroutine[session] = nil
         else
             session_id_coroutine[session] = nil
-            suspend(co, coroutine_resume(co, true, msg, session))
+            coroutine_resume(co, true, msg, session)
         end
     else
         local p = proto[prototype]    
@@ -92,7 +85,7 @@ local function raw_dispatch_message(prototype, msg, session, source)
         local co = co_create(f)   
         session_coroutine_id[co] = session
         session_coroutine_address[co] = source
-        suspend(co, coroutine_resume(co, session, source, p.unpack(msg)))
+        coroutine_resume(co, session, source, table.unpack(p.unpack(msg)))
     end
 end
 
@@ -100,35 +93,8 @@ function rsknet.dispatch_message(...)
     pcall(raw_dispatch_message, ...)
 end
 
-local function co_create(f)
-	local co = nil
-	co = coroutine.create(function(...)
-		f(...)
-		while true do
-			local session = session_coroutine_id[co]
-
-			-- coroutine exit
-			local address = session_coroutine_address[co]
-			if address then
-				session_coroutine_id[co] = nil
-				session_coroutine_address[co] = nil
-			end
-			-- recycle co into pool
-			f = nil
-			coroutine_pool[#coroutine_pool+1] = co
-			-- recv new main function f
-			f = coroutine_yield "SUSPEND"
-			f(coroutine_yield())
-		end
-	end)
-
-	return co
-end
-
 function rsknet.timeout(ti, func)
-	print("timeout fun")
 	local session = tonumber(rsknet_core_command("TIMEOUT", ti))
-	print("timeout session", session)
 	local co = co_create(func)
 	session_id_coroutine[session] = co
 	return co
@@ -136,11 +102,7 @@ end
 
 function rsknet.start(start_func)
 	rsknet_core_callback(rsknet.dispatch_message)
-	init_thread = rsknet.timeout(0, function() start_func() init_thread=nil end)
-	-- init_thread = skynet.timeout(0, function()
-	-- 	skynet.init_service(start_func)
-	-- 	init_thread = nil
-	-- end)
+	rsknet.timeout(0, function() start_func() end)
 end
 
 function rsknet.newservice(name, ...)
@@ -174,7 +136,22 @@ do
 		name = "lua",
 		id = rsknet.PTYPE_LUA,
 		pack = rsknet.pack,
-		unpack = rsknet.unpack,
+		unpack = --todo  rsknet.unpack,
+			function(str_table)	
+				local result = {"return "}
+				for _, v in ipairs(str_table) do
+					local c = string.char(v)
+					if c == '[' then
+						result[#result + 1] = '{'
+					elseif c == ']' then
+						result[#result + 1] = '}'
+					else
+						result[#result + 1] = c
+					end
+				end
+				local str = table.concat(result)
+				return load(str)()
+			end
 	}
 
 	REG {
@@ -182,6 +159,35 @@ do
 		id = rsknet.PTYPE_RESPONSE,
 	}
 
+end
+
+
+function rsknet.response(pack)
+	pack = pack or rsknet.pack
+
+	session_coroutine_id[running_thread] = nil
+	local co_address = session_coroutine_address[running_thread]
+	if co_session == 0 then
+		return function() end
+	end
+	local function response(ok, ...)
+		local ret
+		if unresponse[response] then
+			if ok then
+				ret = rsknet_core_send(co_address, rsknet.PTYPE_RESPONSE, co_session, pack(...))
+			else
+				--ret = c.send(co_address, rsknet.PTYPE_ERROR, co_session, "")
+			end
+			unresponse[response] = nil
+			ret = ret ~= nil
+		else
+			ret = false
+		end
+		pack = nil
+		return ret
+	end
+	unresponse[response] = co_address
+	return response
 end
 
 return rsknet
