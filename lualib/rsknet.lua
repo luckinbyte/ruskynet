@@ -1,3 +1,4 @@
+print("require rsknet begin")
 local rsknet = {}
 
 local proto = {}
@@ -77,22 +78,22 @@ end
 local function raw_dispatch_message(prototype, msg, session, source)
 	print("in rsknet dispatch_message", prototype, msg, session, source)
 
-    -- if prototype == 1 then
-    --     local co = session_id_coroutine[session]
-    --     if co == "BREAK" then
-    --         session_id_coroutine[session] = nil
-    --     else
-    --         session_id_coroutine[session] = nil
-    --         suspend(co, coroutine_resume(co, true, msg, session))
-    --     end
-    -- else
+    if prototype == 1 then
+        local co = session_id_coroutine[session]
+        if co == "BREAK" then
+            session_id_coroutine[session] = nil
+        else
+            session_id_coroutine[session] = nil
+            suspend(co, coroutine_resume(co, true, msg, session))
+        end
+    else
         local p = proto[prototype]    
 		local f = p.dispatch  
         local co = co_create(f)   
         session_coroutine_id[co] = session
         session_coroutine_address[co] = source
         suspend(co, coroutine_resume(co, session, source, p.unpack(msg)))
-    -- end
+    end
 end
 
 function rsknet.dispatch_message(...)
@@ -126,16 +127,15 @@ end
 
 function rsknet.timeout(ti, func)
 	print("timeout fun")
-	local session = rsknet_core_command("TIMEOUT", ti)
-	--local co = co_create(func)
-	--session_id_coroutine[session] = co
-	--return co	-- for debug
+	local session = tonumber(rsknet_core_command("TIMEOUT", ti))
+	print("timeout session", session)
+	local co = co_create(func)
+	session_id_coroutine[session] = co
+	return co
 end
 
 function rsknet.start(start_func)
-	print("rsknet start begin")
 	rsknet_core_callback(rsknet.dispatch_message)
-	print("rsknet start end")
 	init_thread = rsknet.timeout(0, function() start_func() init_thread=nil end)
 	-- init_thread = skynet.timeout(0, function()
 	-- 	skynet.init_service(start_func)
