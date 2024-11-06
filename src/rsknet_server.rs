@@ -2,6 +2,7 @@ use std::borrow::Cow;
 use std::sync::{Arc, Mutex};
 use std::vec;
 use mlua::{lua_State, FromLua, Function, Lua, MetaMethod, Result, UserData, UserDataMethods, Value, Variadic};
+use std::str;
 
 use crate::rsknet_handle::RskynetHandle;
 use crate::rsknet_mq::{MessageQueue, RuskynetMsg, GlobalQueue};
@@ -24,9 +25,9 @@ fn context_push(destination:u32, msg:RuskynetMsg) -> u32{
 }
 
 pub fn rsknet_send(ctx:Arc<Mutex<RskynetContext>>, source:u32, destination:u32, ptype:u32, session:u32, data:Vec<u8>) -> u32{
+    println!("rsknet_init_send source:{} des:{} session:{} data:{:?}", source, destination, session, str::from_utf8(&data).unwrap());
     let msg = RuskynetMsg::new(ptype, data, session, source);
     context_push(destination, msg); 
-    println!("push success {}", session);
     return 1;
 }
 
@@ -85,7 +86,7 @@ impl RskynetContext{
                 self.session_id = self.session_id+1;
                 let new_sid = self.session_id;
                 let ptype = 1; //PTYPE_RESPONSE
-                let new_msg = RuskynetMsg::new(ptype, vec![], new_sid, self.handle);
+                let new_msg = RuskynetMsg::new(ptype, vec![97], new_sid, self.handle);
                 self.push_msg(new_msg);
                 Some(new_sid.to_string())
             },
@@ -102,7 +103,9 @@ impl RskynetContext{
         };
         let handle_id:u32 = des;
         let des_ctx = (*(HANDLES.lock().unwrap())).get_context(handle_id);
-        println!("from rsknet_send {data:?} des_handle:{handle_id}");
+
+        println!("rsknet_core_send hand:{} des:{} session:{} ptype:{ptype} data:{:?}", self.handle, handle_id, session, &data);
+
         let new_msg = RuskynetMsg::new(ptype, data.into_bytes(), new_sid, self.handle);
         des_ctx.lock().unwrap().push_msg(new_msg);
         new_sid

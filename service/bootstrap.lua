@@ -5,7 +5,8 @@ rsknet.start(function()
 	local handle_id = rsknet_core_command("LAUNCH", table.concat({"snlua", "launcher"}," ") )
 	-- todo rsknet.name(".launcher", handle_id)
 
-	rsknet.newservice "main" --todo config path
+	local ret = rsknet.newservice "main" --todo config path
+	print("start main service ret", ret)
 
 	--rsknet.exit()
 end)

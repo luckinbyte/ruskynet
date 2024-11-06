@@ -47,7 +47,7 @@ pub fn _cb(ctx:&mut RskynetContext, proto_type:u32, data:Vec<u8>, session:u32, s
 
 pub fn launch_cb(ctx:&mut RskynetContext, proto_type:u32, data:Vec<u8>, session:u32, source:u32) -> Result<()>{
     let thread_id = thread::current().id();
-    println!("launch_cb in thread {thread_id:?} handle:{:?} {:?} begin", ctx.handle, str::from_utf8(&data).unwrap());
+    // println!("launch_cb in thread {thread_id:?} handle:{:?} {:?} begin", ctx.handle, str::from_utf8(&data).unwrap());
     let rsn_lua = ctx.instance.clone();
     let lua = (*rsn_lua.lock().unwrap()).lua_main.take().unwrap();
 
@@ -121,8 +121,7 @@ pub fn launch_cb(ctx:&mut RskynetContext, proto_type:u32, data:Vec<u8>, session:
                 let ptype:u32 = lua_tointeger(state, 2) as u32;
                 let session = lua_tointeger(state, 3) as u32;
                 let data = lua_tostring(state, 4);     
-                let data = CStr::from_ptr(data).to_string_lossy().to_string();  
-                println!("send fun {data}");      
+                let data = CStr::from_ptr(data).to_string_lossy().to_string();      
 
                 let new_session = (*ctx).rsknet_send(des, ptype, session, data);
                 lua_pushinteger(state, new_session as i64);
@@ -178,7 +177,7 @@ pub fn launch_cb(ctx:&mut RskynetContext, proto_type:u32, data:Vec<u8>, session:
     // let path11 = env::current_dir()?;
     // println!("load successful {}", path11.display());
     (*rsn_lua.lock().unwrap()).lua_main = Some(lua);
-    println!("launch_cb in thread {thread_id:?} {data:?} end");
+    // println!("launch_cb in thread {thread_id:?} {data:?} end");
     Ok(())
 }
 

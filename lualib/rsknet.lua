@@ -1,4 +1,3 @@
-print("require rsknet begin")
 local rsknet = {}
 
 local proto = {}
@@ -9,16 +8,16 @@ local rsknet = {
 
 rsknet.pack = function(...)
 	local ret = rsknet_core_luapack(table.pack(...))
-	print("rsknet pack", ret)
 	return ret
 end 
 rsknet.unpack = function(...)
 	rsknet_core_luaunpack(...)
 end  
 
-local session_id_coroutine = {}
-local session_coroutine_id = {}
-local session_coroutine_address = {}
+local session_id_coroutine = {}  -- co 2 s_id
+local session_coroutine_id = {}	-- s_id 2 co
+local session_coroutine_address = {}	-- s_id 2 handle
+local unresponse = {}
 
 local running_thread = nil
 local init_thread = nil
@@ -68,17 +67,32 @@ function rsknet.dispatch(typename, func)
 	end
 end
 
+local function temp_msg_print(msg)	
+	local result = {}
+	for _, v in ipairs(msg) do
+		local c = string.char(v)
+		if c == '[' then
+			result[#result + 1] = '{'
+		elseif c == ']' then
+			result[#result + 1] = '}'
+		else
+			result[#result + 1] = c
+		end
+	end
+	if not next(result) then
+		print("!!!", type(result), #table)
+		return nil
+	end
+	return table.concat(result)
+end
+
 local function raw_dispatch_message(prototype, msg, session, source)
-	print("in rsknet dispatch_message", prototype, msg, session, source)
+	print(string.format("raw_dispatch_message ptype:%s msg:%s session:%s source:%s", prototype, temp_msg_print(msg), session, source))
 
     if prototype == 1 then
         local co = session_id_coroutine[session]
-        if co == "BREAK" then
-            session_id_coroutine[session] = nil
-        else
-            session_id_coroutine[session] = nil
-            coroutine_resume(co, true, msg, session)
-        end
+        session_id_coroutine[session] = nil
+        coroutine_resume(co, true, msg, session)
     else
         local p = proto[prototype]    
 		local f = p.dispatch  
@@ -126,7 +140,7 @@ end
 function rsknet.launch(...)
 	local addr = rsknet_core_command("LAUNCH", table.concat({...}, " "))
 	if addr then
-		return tonumber(string.sub(addr , 2), 16)
+		return tonumber(addr)
 	end
 end
 
@@ -162,32 +176,55 @@ do
 end
 
 
-function rsknet.response(pack)
-	pack = pack or rsknet.pack
+-- function rsknet.response(pack)
+-- 	pack = pack or rsknet.pack
+
+-- 	session_coroutine_id[running_thread] = nil
+-- 	local co_address = session_coroutine_address[running_thread]
+-- 	if co_session == 0 then
+-- 		return function() end
+-- 	end
+-- 	local function response(ok, ...)
+-- 		local ret
+-- 		if unresponse[response] then
+-- 			if ok then
+-- 				ret = rsknet_core_send(co_address, rsknet.PTYPE_RESPONSE, co_session, pack(...))
+-- 			else
+-- 				--ret = c.send(co_address, rsknet.PTYPE_ERROR, co_session, "")
+-- 			end
+-- 			unresponse[response] = nil
+-- 			ret = ret ~= nil
+-- 		else
+-- 			ret = false
+-- 		end
+-- 		pack = nil
+-- 		return ret
+-- 	end
+-- 	unresponse[response] = co_address
+-- 	return response
+-- end
+
+function rsknet.context()
+	local co_session = session_coroutine_id[running_thread]
+	local co_address = session_coroutine_address[running_thread]
+	return co_session, co_address
+end
+
+
+function rsknet.ret(msg)
+	msg = msg or ""
+	local co_session = session_coroutine_id[running_thread]
 
 	session_coroutine_id[running_thread] = nil
 	local co_address = session_coroutine_address[running_thread]
-	if co_session == 0 then
-		return function() end
+	local ret = rsknet_core_send(co_address, rsknet.PTYPE_RESPONSE, co_session, msg)
+	if ret then
+		return true
+	elseif ret == false then
+		-- If the package is too large, returns false. so we should report error back
+		-- c.send(co_address, skynet.PTYPE_ERROR, co_session, "")
 	end
-	local function response(ok, ...)
-		local ret
-		if unresponse[response] then
-			if ok then
-				ret = rsknet_core_send(co_address, rsknet.PTYPE_RESPONSE, co_session, pack(...))
-			else
-				--ret = c.send(co_address, rsknet.PTYPE_ERROR, co_session, "")
-			end
-			unresponse[response] = nil
-			ret = ret ~= nil
-		else
-			ret = false
-		end
-		pack = nil
-		return ret
-	end
-	unresponse[response] = co_address
-	return response
+	return false
 end
 
 return rsknet
