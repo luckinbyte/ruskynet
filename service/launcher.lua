@@ -22,21 +22,20 @@ local function launch_service(service, ...)
 end
 
 function command.LAUNCH(_, service, ...)
-	launch_service(service, ...)
+	return launch_service(service, ...)
 	--return NORET
-    return 1
 end
 
 rsknet.dispatch("lua", function(session, address, cmd , ...)
 	local f = command[cmd]
 	if f then
 		local ret = f(address, ...)
-		print("launch ret:", ret)
+		--print("launch ret:", ret)
 		rsknet.ret(rsknet.pack(ret))
-		print("ret success")
+		--print("ret success")
     end
 end)
 
 rsknet.start(function() 
-    print("launcher success") 
+    print("launcher service start success") 
 end)

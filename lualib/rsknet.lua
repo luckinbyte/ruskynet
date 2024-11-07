@@ -40,12 +40,13 @@ end
 function rsknet.call(addr, typename, ...)
 	local p = proto[typename]
 	local session = rsknet_core_send(addr, p.id, 0, p.pack(...))
+	print(string.format("rsknet.call hand:%s session:%s running_thread:%s", HANDLE_ID, session, running_thread), addr, typename, ...)
 	return p.unpack(yield_call(addr, session))
 end
 
 local function coroutine_resume(co, ...)
 	running_thread = co
-	print("coroutine_resume:", co, ...)
+	--print("coroutine_resume:", co, ...)
 	return coroutine.resume(co, ...)
 end
 
@@ -87,7 +88,7 @@ local function temp_msg_print(msg)
 end
 
 local function raw_dispatch_message(prototype, msg, session, source)
-	print(string.format("raw_dispatch_message ptype:%s msg:%s session:%s source:%s", prototype, temp_msg_print(msg), session, source))
+	print(string.format("raw_dispatch_message hand:%s ptype:%s msg:%s session:%s source:%s", HANDLE_ID, prototype, temp_msg_print(msg), session, source))
 
     if prototype == 1 then
         local co = session_id_coroutine[session]

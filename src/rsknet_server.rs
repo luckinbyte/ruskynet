@@ -76,7 +76,7 @@ impl RskynetContext{
     }
 
     pub fn rsknet_command(&mut self, cmd:String, pram:String) -> Option<String>{
-        println!("rsknet_command: {:?}", &cmd as &str);
+        println!("handle:{:?} rsknet_command: {:?}", self.handle, &cmd as &str);
         match &cmd as &str{
             "LAUNCH" => {
                 let handle = RskynetContext::new(HANDLES.clone(), pram.as_str());
@@ -86,7 +86,7 @@ impl RskynetContext{
                 self.session_id = self.session_id+1;
                 let new_sid = self.session_id;
                 let ptype = 1; //PTYPE_RESPONSE
-                let new_msg = RuskynetMsg::new(ptype, vec![97], new_sid, self.handle);
+                let new_msg = RuskynetMsg::new(ptype, "TIMEOUT".to_string().into_bytes(), new_sid, self.handle);
                 self.push_msg(new_msg);
                 Some(new_sid.to_string())
             },
@@ -104,7 +104,7 @@ impl RskynetContext{
         let handle_id:u32 = des;
         let des_ctx = (*(HANDLES.lock().unwrap())).get_context(handle_id);
 
-        println!("rsknet_core_send hand:{} des:{} session:{} ptype:{ptype} data:{:?}", self.handle, handle_id, session, &data);
+        println!("rsknet_core_send hand:{} des:{} session:{} ptype:{ptype} data:{:?}", self.handle, handle_id, new_sid, &data);
 
         let new_msg = RuskynetMsg::new(ptype, data.into_bytes(), new_sid, self.handle);
         des_ctx.lock().unwrap().push_msg(new_msg);

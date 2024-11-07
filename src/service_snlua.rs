@@ -25,7 +25,7 @@ pub fn _cb(ctx:&mut RskynetContext, proto_type:u32, data:Vec<u8>, session:u32, s
     let rsn_lua = ctx.instance.clone();
     let lua = (*rsn_lua.lock().unwrap()).lua_main.take().unwrap();
 
-    println!("in _cb handle:{:?} data:{:?}", ctx.handle, str::from_utf8(&data).unwrap());
+    println!("handle:{:?} _cb ptype:{proto_type:?} session:{session:?} source:{source:?} data:{:?}", ctx.handle, str::from_utf8(&data).unwrap());
     //let data = lua.pack(data)?;
     // let lua_cb_fun:Value = lua.named_registry_value(LUACBFUNSTR)?;
     // println!("in cb cb_fun:{:?}", lua_cb_fun);
@@ -54,6 +54,7 @@ pub fn launch_cb(ctx:&mut RskynetContext, proto_type:u32, data:Vec<u8>, session:
     // load bootstrap.lua
     let globals = lua.globals();
     globals.set("LUA_SERVICE", "../service/?.lua")?;
+    globals.set("HANDLE_ID", ctx.handle)?;
 
     // require rsknet_core lib
     let callback = lua.create_function(|lua: &Lua, a:Value| {
@@ -124,6 +125,7 @@ pub fn launch_cb(ctx:&mut RskynetContext, proto_type:u32, data:Vec<u8>, session:
                 let data = CStr::from_ptr(data).to_string_lossy().to_string();      
 
                 let new_session = (*ctx).rsknet_send(des, ptype, session, data);
+                ffi::lua_pop(state, 5);
                 lua_pushinteger(state, new_session as i64);
             })
         }?;
