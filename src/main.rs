@@ -1,5 +1,10 @@
 use std::thread;
 use std::sync::{Arc, Mutex, Condvar};
+//use std::sync::mpsc::channel;
+use std::os::fd::AsRawFd;
+use mio::unix::pipe;
+use std::sync::RwLock;
+use std::io::{Read, Write};
 
 mod rsknet_mq;
 mod rsknet_handle;
@@ -9,11 +14,12 @@ mod rsknet_monitor;
 mod service_snlua;
 mod rsknet_global;
 mod rsknet_timer;
+mod lua_rsknet;
+mod lua_socket;
 
 use rsknet_monitor::RskynetMonitor;
 use rsknet_server::RskynetContext;
-use rsknet_global::{HANDLES, GLOBALMQ};
-
+use rsknet_global::{HANDLES, GLOBALMQ, SENDFD};
 
 fn thread_worker(dispatch_type:u32, monitor:Arc<RskynetMonitor>){
     loop{
@@ -53,9 +59,13 @@ fn main() {
     let mut threads = Vec::with_capacity(thread_capacity.try_into().unwrap());
     let monitor = Arc::new(RskynetMonitor::new());
     let monitor_clone = monitor.clone();
-    threads.push(thread::spawn(move || rsknet_socket::rsnet_socket_start(monitor_clone))); 
+
+    let (send_fd, recv_fd) = pipe::new().unwrap();
+    SENDFD.get_or_init(||{send_fd});
+
+    threads.push(thread::spawn(move || rsknet_socket::rsknet_socket_start(monitor_clone, recv_fd))); 
     let monitor_clone = monitor.clone();
-    threads.push(thread::spawn(move || rsknet_timer::rsnet_timer_start(monitor_clone))); 
+    threads.push(thread::spawn(move || rsknet_timer::rsknet_timer_start(monitor_clone))); 
 
     for i in 1..=thread_capacity-1 {
         let monitor_clone = monitor.clone();

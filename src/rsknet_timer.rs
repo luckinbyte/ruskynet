@@ -7,7 +7,7 @@ use crate::rsknet_monitor::{RskynetMonitor};
 fn rsknet_socket_updatetime(){
 }
 
-pub fn rsnet_timer_start(monitor:Arc<RskynetMonitor>){
+pub fn rsknet_timer_start(monitor:Arc<RskynetMonitor>){
     loop{
         rsknet_socket_updatetime();
         thread::sleep(Duration::from_millis(100));

@@ -9,3 +9,5 @@ edition = "2021"
 lazy_static = "1.4.0"
 mlua = { version = "0.10.0", features = ["lua54", "vendored", "send", "serialize"] }
 serde_json = { version = "1.0", features = ["arbitrary_precision"] }
+mio = { version = "1.0.2", features = ["os-poll", "net", "os-ext"]}
+libc = "0.2"
