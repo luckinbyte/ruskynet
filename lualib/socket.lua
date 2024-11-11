@@ -35,9 +35,9 @@ local function connect(id, func)
 end
 
 -- RSKNET_SOCKET_TYPE_DATA = 1
-socket_message[1] = function(id, size, data)
+socket_message[1] = function(id, data)
 	local s = socket_pool[id]
-	wakeup(s)
+    s.callback(id, data)
 end
 
 -- RSKNET_SOCKET_TYPE_CONNECT = 2
@@ -102,6 +102,14 @@ end
 function socket.start(id, func)
 	rsknet_socket_start(id)
 	return connect(id, func)
+end
+
+function socket.register_recieve(id, func)
+    local s = {
+		id = id,
+		callback = func,
+	}
+	socket_pool[id] = s
 end
 
 return socket

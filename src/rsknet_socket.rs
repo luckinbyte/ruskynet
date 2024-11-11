@@ -38,8 +38,15 @@ impl GlobalReqRecord{
     }
 }
 
+static RSKNET_SOCKET_TYPE_DATA:u32 = 1;
 static RSKNET_SOCKET_TYPE_CONNECT:u32 = 2;
 static RSKNET_SOCKET_TYPE_ACCEPT:u32 = 4;
+
+enum EpolResult{
+    ListenRet((u32, TcpStream, SocketAddr, u32)),
+    DataRet((u32, String, u32)),
+}
+
 
 enum PolEnety {
     TcpStream(TcpStream),
@@ -230,33 +237,28 @@ fn socket_server_epoll(ss:&mut SocketServer) -> u32{
                 let Token(token_id) = event.token();
                 println!("token_id token_id:{token_id:?}");
                 let socket_enety = ss.token_map.get_mut(&(token_id as u32));
-                let ret = match socket_enety{
+                let ret: Option<EpolResult> = match socket_enety{
                     Some(socket_enety) =>{
                         match socket_enety.socket_type{
                             1 =>{//listen
-                                println!("TcpListener TcpListener");
                                 if let PolEnety::TcpListener(tcp_listen) = &socket_enety.pol_enety{
                                     let (client_fd, socket_addr) = tcp_listen.accept().unwrap();
-                                    println!("TcpListener TcpListener accept");
-                                    Some((RSKNET_SOCKET_TYPE_ACCEPT, socket_enety.req_id, client_fd, socket_addr, socket_enety.source))
+                                    Some(EpolResult::ListenRet((socket_enety.req_id, client_fd, socket_addr, socket_enety.source)))
                                 }else{
-                                    println!("TcpListener TcpListener none");
+                                    println!("TcpListener none");
                                     None
                                 }
                             },
                             2 =>{//socket
                                 if event.is_readable() {
                                     if let PolEnety::TcpStream(ref mut connection) = socket_enety.pol_enety{
-                                        let mut connection_closed = false;
                                         let mut received_data = vec![0; 4096];
                                         let mut bytes_read = 0;
                                         // We can (maybe) read from the connection.
                                         loop {
                                             match connection.read(&mut received_data[bytes_read..]) {
                                                 Ok(0) => {
-                                                    // Reading 0 bytes means the other side has closed the
-                                                    // connection or is done writing, then so are we.
-                                                    connection_closed = true;
+                                                    println!("connection read len equal zero");
                                                     break;
                                                 }
                                                 Ok(n) => {
@@ -265,8 +267,9 @@ fn socket_server_epoll(ss:&mut SocketServer) -> u32{
                                                         received_data.resize(received_data.len() + 1024, 0);
                                                     }
                                                 }
-                                                _ =>{
-
+                                                Err(err) => {
+                                                    println!("connection read err {err:?}");
+                                                    break;
                                                 }
                                             }
                                         }
@@ -274,21 +277,22 @@ fn socket_server_epoll(ss:&mut SocketServer) -> u32{
                                             let received_data = &received_data[..bytes_read];
                                             if let Ok(str_buf) = std::str::from_utf8(received_data) {
                                                 println!("Received data: {}", str_buf.trim_end());
+                                                Some(EpolResult::DataRet((socket_enety.req_id, str_buf.to_string(), socket_enety.source)))
                                             } else {
                                                 println!("Received (none UTF-8) data: {:?}", received_data);
+                                                None
                                             }
+                                        }else{
+                                            None
                                         }
-                                        // if connection_closed {
-                                        //     println!("Connection closed");
-                                        //     return Ok(true);
-                                        // }
+                                    }else{
+                                        None
                                     }
+                                }else{
+                                    None
                                 }
-                                None
                             }
-                            _ =>{
-                                None
-                            }
+                            _ => None
                         }
                     }
                     _ =>{
@@ -297,7 +301,7 @@ fn socket_server_epoll(ss:&mut SocketServer) -> u32{
                     }
                 };
                 match ret{
-                    Some((ret_type, old_req_id, client_fd, socket_addt, source)) if ret_type == RSKNET_SOCKET_TYPE_ACCEPT =>{
+                    Some(EpolResult::ListenRet((old_req_id, client_fd, socket_addt, source))) =>{
                         let req_id = GLOBALREQ.lock().unwrap().add_req();
                         ss.token_map.insert(req_id, 
                             SocketEnety::new(PolEnety::TcpStream(client_fd), source, req_id, 2)
@@ -311,6 +315,11 @@ fn socket_server_epoll(ss:&mut SocketServer) -> u32{
                         let new_msg = RuskynetMsg::new(6, format!("[{},{},{},\"{}\"]",RSKNET_SOCKET_TYPE_ACCEPT,old_req_id,req_id,socket_addt.to_string()).into_bytes(), 0, 0);
                         ctx.lock().unwrap().push_msg(new_msg);
                     },
+                    Some(EpolResult::DataRet((req_id, data, source))) =>{
+                        let ctx = (*(HANDLES.lock().unwrap())).get_context(source);
+                        let new_msg = RuskynetMsg::new(6, format!("[{},{},\"{}\"]",RSKNET_SOCKET_TYPE_DATA,req_id,data).into_bytes(), 0, 0);
+                        ctx.lock().unwrap().push_msg(new_msg);
+                    }
                     _ =>{
 
                     }
