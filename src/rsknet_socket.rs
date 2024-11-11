@@ -238,7 +238,7 @@ fn socket_server_epoll(ss:&mut SocketServer) -> u32{
                                 if let PolEnety::TcpListener(tcp_listen) = &socket_enety.pol_enety{
                                     let (client_fd, socket_addr) = tcp_listen.accept().unwrap();
                                     println!("TcpListener TcpListener accept");
-                                    Some((RSKNET_SOCKET_TYPE_ACCEPT, client_fd, socket_addr, socket_enety.source))
+                                    Some((RSKNET_SOCKET_TYPE_ACCEPT, socket_enety.req_id, client_fd, socket_addr, socket_enety.source))
                                 }else{
                                     println!("TcpListener TcpListener none");
                                     None
@@ -297,7 +297,7 @@ fn socket_server_epoll(ss:&mut SocketServer) -> u32{
                     }
                 };
                 match ret{
-                    Some((ret_type, client_fd, socket_addt, source)) if ret_type == RSKNET_SOCKET_TYPE_ACCEPT =>{
+                    Some((ret_type, old_req_id, client_fd, socket_addt, source)) if ret_type == RSKNET_SOCKET_TYPE_ACCEPT =>{
                         let req_id = GLOBALREQ.lock().unwrap().add_req();
                         ss.token_map.insert(req_id, 
                             SocketEnety::new(PolEnety::TcpStream(client_fd), source, req_id, 2)
@@ -308,7 +308,7 @@ fn socket_server_epoll(ss:&mut SocketServer) -> u32{
                         };
         
                         let ctx = (*(HANDLES.lock().unwrap())).get_context(source);
-                        let new_msg = RuskynetMsg::new(6, format!("[{},{},\"{}\"]",RSKNET_SOCKET_TYPE_ACCEPT,req_id,socket_addt.to_string()).into_bytes(), 0, 0);
+                        let new_msg = RuskynetMsg::new(6, format!("[{},{},{},\"{}\"]",RSKNET_SOCKET_TYPE_ACCEPT,old_req_id,req_id,socket_addt.to_string()).into_bytes(), 0, 0);
                         ctx.lock().unwrap().push_msg(new_msg);
                     },
                     _ =>{

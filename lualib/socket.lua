@@ -19,14 +19,8 @@ local function wakeup(s)
 end
 
 local function connect(id, func)
-	-- local newbuffer
-	-- if func == nil then
-	-- 	newbuffer = driver.buffer()
-	-- end
 	local s = {
 		id = id,
-		-- buffer = newbuffer,
-		-- pool = newbuffer and {},
 		connected = false,
 		connecting = true,
 		read_required = false,
@@ -40,10 +34,15 @@ local function connect(id, func)
 	return id
 end
 
+-- RSKNET_SOCKET_TYPE_DATA = 1
+socket_message[1] = function(id, size, data)
+	local s = socket_pool[id]
+	wakeup(s)
+end
+
 -- RSKNET_SOCKET_TYPE_CONNECT = 2
 socket_message[2] = function(id, ud, addr)
 	local s = socket_pool[id]
-    print("RSKNET_SOCKET_TYPE_CONNECT", id, s, s.connected)
 	if s == nil then
 		return
 	end

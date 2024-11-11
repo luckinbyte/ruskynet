@@ -7,9 +7,8 @@ rsknet.start(function()
     print("user server start!!")
 	--rsknet.exit()
     local listen_socket = socket.listen("0.0.0.0", 4276)
-    print("listen_socket listen_socket", listen_socket)
     socket.start(listen_socket, function(id, addr)
-        print("socket.start socket.start")
+        print("socket.start socket.start", id)
 		local function print(...)
 			local t = { ... }
 			for k,v in ipairs(t) do
