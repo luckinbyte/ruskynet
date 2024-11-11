@@ -63,7 +63,7 @@ fn main() {
     let (send_fd, recv_fd) = pipe::new().unwrap();
     SENDFD.get_or_init(||{send_fd});
 
-    threads.push(thread::spawn(move || rsknet_socket::rsknet_socket_start(monitor_clone, recv_fd))); 
+    threads.push(thread::spawn(move || rsknet_socket::rsknet_socket_main_start(monitor_clone, recv_fd))); 
     let monitor_clone = monitor.clone();
     threads.push(thread::spawn(move || rsknet_timer::rsknet_timer_start(monitor_clone))); 
 

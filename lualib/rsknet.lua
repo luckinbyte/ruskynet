@@ -3,6 +3,7 @@ local rsknet = {}
 local proto = {}
 local rsknet = {
 	PTYPE_RESPONSE = 1,
+	PTYPE_SOCKET = 6,
 	PTYPE_LUA = 10,
 }
 
