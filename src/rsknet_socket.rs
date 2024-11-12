@@ -195,6 +195,15 @@ fn deal_cmd(ss:&mut SocketServer) -> u32{
                 let new_msg = RuskynetMsg::new(6, format!("[{},{}]",RSKNET_SOCKET_TYPE_CONNECT,id).into_bytes(), 0, 0);
                 ctx.lock().unwrap().push_msg(new_msg);
             },
+            "3" =>{//send  0:id 1:type 2:data
+                let id:u32 = arg[0].to_string().parse().unwrap();
+                let data = arg[2];
+
+                let s_enety = ss.token_map.get_mut(&id).unwrap();
+                if let PolEnety::TcpStream(ref mut client_fd) = s_enety.pol_enety{
+                    let _ = client_fd.write_all(data.as_bytes());
+                }
+            }
             _ =>{
                 //println!("deal_cmd error req_type {}", &arg[1])
             }
@@ -355,6 +364,17 @@ pub fn rsknet_socket_start(handle_id:u32, id:u32) {
     let mut send_fd = SENDFD.get().unwrap();
     let send_bytes = send_str.as_bytes();
     let send_len = send_bytes.len() as u8;
+    send_fd.write_all(&[send_len]).unwrap();
+    send_fd.write_all(send_bytes).unwrap();
+    return ()
+}
+
+pub fn rsknet_socket_send(_handle_id:u32, id:u32, data:String){
+    let send_str = id.to_string()+&" 3 "+&data;
+    let mut send_fd = SENDFD.get().unwrap();
+    let send_bytes = send_str.as_bytes();
+    let send_len = send_bytes.len() as u8;
+    //todo send_len > u8
     send_fd.write_all(&[send_len]).unwrap();
     send_fd.write_all(send_bytes).unwrap();
     return ()

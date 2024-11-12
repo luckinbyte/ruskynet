@@ -112,4 +112,8 @@ function socket.register_recieve(id, func)
 	socket_pool[id] = s
 end
 
+function socket.write(id, data)
+	rsknet_socket_send(id, data)
+end
+
 return socket

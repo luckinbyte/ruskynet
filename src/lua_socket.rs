@@ -9,7 +9,7 @@ use mlua::{ffi::{self, *}, Lua, Result, Value};
 
 use crate::rsknet_server::{RskynetContext};
 use crate::rsknet_global::{to_cstr, LUACBFUNSTR, RSKNETCTXSTR};
-use crate::rsknet_socket::{rsknet_socket_listen, rsknet_socket_start};
+use crate::rsknet_socket::{rsknet_socket_listen, rsknet_socket_start, rsknet_socket_send};
 
 
 pub fn luaopen_rsknet_socket(lua:&Lua) -> Result<()>{
@@ -54,12 +54,14 @@ pub fn luaopen_rsknet_socket(lua:&Lua) -> Result<()>{
         unsafe{
             lua.exec_raw((id, str),|state|{
                 let id = ffi::lua_tointeger(state, 1) as u32;
+                let data = ffi::lua_tostring(state, 2);
+                let data = CStr::from_ptr(data).to_string_lossy().to_string();
 
                 ffi::lua_getfield(state, ffi::LUA_REGISTRYINDEX, to_cstr(RSKNETCTXSTR));
                 let ctx = ffi::lua_touserdata(state, -1) as *mut RskynetContext;
                
-                rsknet_socket_start((*ctx).handle, id);
-                ffi::lua_pop(state, 2);
+                rsknet_socket_send((*ctx).handle, id, data);
+                ffi::lua_pop(state, 3);
             })
         }?;
         Ok(Nil)
