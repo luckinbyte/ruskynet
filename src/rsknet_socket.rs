@@ -43,7 +43,7 @@ static RSKNET_SOCKET_TYPE_CONNECT:u32 = 2;
 static RSKNET_SOCKET_TYPE_ACCEPT:u32 = 4;
 
 enum EpolResult{
-    ListenRet((u32, TcpStream, SocketAddr, u32)),
+    ListenRet(Vec<(u32, TcpStream, SocketAddr, u32)>),
     DataRet((u32, String, u32)),
 }
 
@@ -128,21 +128,6 @@ pub fn rsknet_socket_main_start(monitor:Arc<RskynetMonitor>, recv_fd:Receiver) {
         monitor.wake_up();
     }
     return ();
-    for i in 1..=1 {
-        for j in 1..=2 {
-            thread::sleep(Duration::from_secs(1));
-            let handle_id:u32 = i;
-            let ctx = (*(HANDLES.lock().unwrap())).get_context(handle_id);
-            let mut data: Vec<u8> = Vec::new();
-            data.push(i as u8);
-            println!("from socket push msg begin {handle_id}, {}", i*10+j);
-            let new_msg = RuskynetMsg::new(i, data, i*10+j, i);
-            println!("from socket push msg end {handle_id} {}", i*10+j);
-            ctx.lock().unwrap().push_msg(new_msg);
-            monitor.wake_up();
-        }
-        
-    }
 }
 
 fn rsknet_socket_epoll(ss:&mut SocketServer) -> u32{
@@ -241,13 +226,26 @@ fn socket_server_epoll(ss:&mut SocketServer) -> u32{
                     Some(socket_enety) =>{
                         match socket_enety.socket_type{
                             1 =>{//listen
+                                let mut listen_vec: Vec<(u32, TcpStream, SocketAddr, u32)> = Vec::new();
                                 if let PolEnety::TcpListener(tcp_listen) = &socket_enety.pol_enety{
-                                    let (client_fd, socket_addr) = tcp_listen.accept().unwrap();
-                                    Some(EpolResult::ListenRet((socket_enety.req_id, client_fd, socket_addr, socket_enety.source)))
+                                    loop {
+                                        match tcp_listen.accept() {
+                                            Ok((client_fd, socket_addr)) => {
+                                                // if next_socket_index == MAX_SOCKETS {
+                                                //     return Ok(());
+                                                // }
+                                                listen_vec.push((socket_enety.req_id, client_fd, socket_addr, socket_enety.source));
+                                            }
+                                            Err(ref e) if e.kind() == std::io::ErrorKind::WouldBlock => {
+                                                break;
+                                            }
+                                            e => panic!("err={:?}", e), // Unexpected error
+                                        }
+                                    }
                                 }else{
-                                    println!("TcpListener none");
-                                    None
-                                }
+                                    println!("TcpListener none")
+                                };
+                                Some(EpolResult::ListenRet(listen_vec))
                             },
                             2 =>{//socket
                                 if event.is_readable() {
@@ -258,6 +256,7 @@ fn socket_server_epoll(ss:&mut SocketServer) -> u32{
                                         loop {
                                             match connection.read(&mut received_data[bytes_read..]) {
                                                 Ok(0) => {
+                                                    // todo Socket is closed, remove it from the map
                                                     println!("connection read len equal zero");
                                                     break;
                                                 }
@@ -266,6 +265,10 @@ fn socket_server_epoll(ss:&mut SocketServer) -> u32{
                                                     if bytes_read == received_data.len() {
                                                         received_data.resize(received_data.len() + 1024, 0);
                                                     }
+                                                }
+                                                Err(ref e) if e.kind() == std::io::ErrorKind::WouldBlock => {
+                                                    // Socket is not ready anymore, stop reading
+                                                    break;
                                                 }
                                                 Err(err) => {
                                                     println!("connection read err {err:?}");
@@ -301,19 +304,21 @@ fn socket_server_epoll(ss:&mut SocketServer) -> u32{
                     }
                 };
                 match ret{
-                    Some(EpolResult::ListenRet((old_req_id, client_fd, socket_addt, source))) =>{
-                        let req_id = GLOBALREQ.lock().unwrap().add_req();
-                        ss.token_map.insert(req_id, 
-                            SocketEnety::new(PolEnety::TcpStream(client_fd), source, req_id, 2)
-                        );
-                        if let PolEnety::TcpStream(pol_stream) = &mut ss.token_map.get_mut(&req_id).unwrap().pol_enety{
-                            ss.poll.registry()
-                            .register(pol_stream, Token(req_id as usize), Interest::READABLE).unwrap();
-                        };
-        
-                        let ctx = (*(HANDLES.lock().unwrap())).get_context(source);
-                        let new_msg = RuskynetMsg::new(6, format!("[{},{},{},\"{}\"]",RSKNET_SOCKET_TYPE_ACCEPT,old_req_id,req_id,socket_addt.to_string()).into_bytes(), 0, 0);
-                        ctx.lock().unwrap().push_msg(new_msg);
+                    Some(EpolResult::ListenRet(listen_vec)) =>{
+                        for (old_req_id, client_fd, socket_addt, source) in listen_vec.into_iter(){
+                            let req_id = GLOBALREQ.lock().unwrap().add_req();
+                            ss.token_map.insert(req_id, 
+                                SocketEnety::new(PolEnety::TcpStream(client_fd), source, req_id, 2)
+                            );
+                            if let PolEnety::TcpStream(pol_stream) = &mut ss.token_map.get_mut(&req_id).unwrap().pol_enety{
+                                ss.poll.registry()
+                                .register(pol_stream, Token(req_id as usize), Interest::READABLE).unwrap();
+                            };
+            
+                            let ctx = (*(HANDLES.lock().unwrap())).get_context(source);
+                            let new_msg = RuskynetMsg::new(6, format!("[{},{},{},\"{}\"]",RSKNET_SOCKET_TYPE_ACCEPT,old_req_id,req_id,socket_addt.to_string()).into_bytes(), 0, 0);
+                            ctx.lock().unwrap().push_msg(new_msg);
+                        }
                     },
                     Some(EpolResult::DataRet((req_id, data, source))) =>{
                         let ctx = (*(HANDLES.lock().unwrap())).get_context(source);

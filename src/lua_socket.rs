@@ -50,6 +50,21 @@ pub fn luaopen_rsknet_socket(lua:&Lua) -> Result<()>{
     })?;
     globals.set("rsknet_socket_start", lua_start_fun)?;
     
+    let lua_send_fun = lua.create_function(|lua: &Lua, (id,str):(Value,Value)| {
+        unsafe{
+            lua.exec_raw((id, str),|state|{
+                let id = ffi::lua_tointeger(state, 1) as u32;
+
+                ffi::lua_getfield(state, ffi::LUA_REGISTRYINDEX, to_cstr(RSKNETCTXSTR));
+                let ctx = ffi::lua_touserdata(state, -1) as *mut RskynetContext;
+               
+                rsknet_socket_start((*ctx).handle, id);
+                ffi::lua_pop(state, 2);
+            })
+        }?;
+        Ok(Nil)
+    })?;
+    globals.set("rsknet_socket_send", lua_send_fun)?;
 
     Ok(())
 }
