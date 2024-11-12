@@ -54,11 +54,6 @@ pub fn luaopen_rsknet_core(lua:&Lua) -> Result<()>{
             })
         }?;
         Ok(1)
-        // let state = a.state();
-        // println!("in calback");
-        // let ctx = ffi::lua_touserdata((lua, ffi::lua_upvalueindex(1)) as *mut RskynetContext;
-        //  //ffi::lua_newthread(lua);
-        // let a =  lua.create_thread({}).unwrap();
     })?;
     globals.set("rsknet_core_callback", callback)?;
 

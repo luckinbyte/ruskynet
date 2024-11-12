@@ -45,10 +45,6 @@ fn thread_worker(dispatch_type:u32, monitor:Arc<RskynetMonitor>){
 
 fn boot_strap(){
     RskynetContext::new(HANDLES.clone(), "snlua bootstrap");
-    //RskynetContext::new(HANDLES.clone());
-   // RskynetContext::new(HANDLES.clone());
-   // RskynetContext::new(HANDLES.clone());
-   // RskynetContext::new(HANDLES.clone());
 }
 
 fn main() {

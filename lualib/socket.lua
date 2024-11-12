@@ -6,7 +6,6 @@ local socket_message = {}
 
 local function suspend(s)
 	s.co = coroutine.running()
-	--skynet.wait(s.co)
     coroutine.yield "SUSPEND"
 end
 

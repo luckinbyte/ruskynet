@@ -177,41 +177,11 @@ do
 
 end
 
-
--- function rsknet.response(pack)
--- 	pack = pack or rsknet.pack
-
--- 	session_coroutine_id[running_thread] = nil
--- 	local co_address = session_coroutine_address[running_thread]
--- 	if co_session == 0 then
--- 		return function() end
--- 	end
--- 	local function response(ok, ...)
--- 		local ret
--- 		if unresponse[response] then
--- 			if ok then
--- 				ret = rsknet_core_send(co_address, rsknet.PTYPE_RESPONSE, co_session, pack(...))
--- 			else
--- 				--ret = c.send(co_address, rsknet.PTYPE_ERROR, co_session, "")
--- 			end
--- 			unresponse[response] = nil
--- 			ret = ret ~= nil
--- 		else
--- 			ret = false
--- 		end
--- 		pack = nil
--- 		return ret
--- 	end
--- 	unresponse[response] = co_address
--- 	return response
--- end
-
 function rsknet.context()
 	local co_session = session_coroutine_id[running_thread]
 	local co_address = session_coroutine_address[running_thread]
 	return co_session, co_address
 end
-
 
 function rsknet.ret(msg)
 	msg = msg or ""
