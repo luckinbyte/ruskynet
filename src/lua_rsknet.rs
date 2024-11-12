@@ -6,7 +6,7 @@ use std::str;
 
 //use serde_json;
 //use serde::{Deserialize, Serialize};
-use mlua::{ffi::{self, *}, Lua, Result, Value};
+use mlua::{ffi::{self, *}, Lua, Result, Value, LuaSerdeExt};
 
 use crate::rsknet_server::{RskynetContext};
 use crate::rsknet_global::{to_cstr, LUACBFUNSTR, RSKNETCTXSTR};
@@ -16,9 +16,7 @@ pub fn _cb(ctx:&mut RskynetContext, proto_type:u32, data:Vec<u8>, session:u32, s
     let lua = (*rsn_lua.lock().unwrap()).lua_main.take().unwrap();
 
     println!("handle:{:?} _cb ptype:{proto_type:?} session:{session:?} source:{source:?} data:{:?}", ctx.handle, str::from_utf8(&data).unwrap());
-    //let data = lua.pack(data)?;
-    // let lua_cb_fun:Value = lua.named_registry_value(LUACBFUNSTR)?;
-    // println!("in cb cb_fun:{:?}", lua_cb_fun);
+    //let ud = lua.create_ser_any_userdata(data).unwrap();
     unsafe{
         lua.exec_raw((1, proto_type, data, session, source), |state|{
             ffi::lua_getfield(state, ffi::LUA_REGISTRYINDEX, to_cstr(LUACBFUNSTR));
@@ -129,11 +127,12 @@ pub fn luaopen_rsknet_core(lua:&Lua) -> Result<()>{
     })?;
     globals.set("rsknet_core_luapack", lua_pack_fun)?;
 
-    let lua_unpack_fun = lua.create_function(|lua: &Lua, tt:Value| {
-        //lua.to_value(&serde_json::from_str::<serde_json::Value>(&tt).unwrap())
-        //println!("unpack {:?}", tt);
-        Ok("1")
-    })?;
+    let lua_unpack_fun = lua
+        .create_function(|lua: &Lua, s:Value| {
+            //lua.to_value(&serde_json::from_str::<serde_json::Value>(&s).unwrap())
+            let json_str = serde_json::to_string_pretty(&s).unwrap();
+            Ok(json_str)
+        })?;
     globals.set("rsknet_core_luaunpack", lua_unpack_fun)?;
 
     Ok(())

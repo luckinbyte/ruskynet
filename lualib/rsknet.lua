@@ -11,8 +11,8 @@ rsknet.pack = function(...)
 	local ret = rsknet_core_luapack(table.pack(...))
 	return ret
 end 
-rsknet.unpack = function(...)
-	rsknet_core_luaunpack(...)
+rsknet.unpack = function(msg)
+	rsknet_core_luaunpack(msg)
 end  
 
 local session_id_coroutine = {}  -- co 2 s_id
@@ -89,8 +89,7 @@ local function temp_msg_print(msg)
 end
 
 local function raw_dispatch_message(prototype, msg, session, source)
-	print(string.format("raw_dispatch_message hand:%s ptype:%s msg:%s session:%s source:%s", HANDLE_ID, prototype, temp_msg_print(msg), session, source))
-
+	--print(string.format("raw_dispatch_message hand:%s ptype:%s type_msg:%s msg:%s session:%s source:%s", HANDLE_ID, prototype, type(msg), temp_msg_print(msg), session, source))
     if prototype == 1 then
         local co = session_id_coroutine[session]
         session_id_coroutine[session] = nil
@@ -152,8 +151,9 @@ do
 		name = "lua",
 		id = rsknet.PTYPE_LUA,
 		pack = rsknet.pack,
-		unpack = --todo  rsknet.unpack,
-			function(str_table)	
+		unpack = rsknet.unpack,
+		-- unpack = --todo  rsknet.unpack,
+		unpack = function(str_table)	
 				local result = {"return "}
 				for _, v in ipairs(str_table) do
 					local c = string.char(v)
